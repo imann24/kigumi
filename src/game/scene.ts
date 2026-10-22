@@ -17,6 +17,7 @@ import {
 } from "./art";
 import { advanceWalk, interpolatePosition, type WalkPose } from "./walking";
 import { PlannedPaths } from "./planned-paths";
+import { ResourcePulses } from "./resource-pulses";
 export type Hit = { type: "villager" | "building" | "resource"; id: number };
 export class VillageScene {
   renderer: THREE.WebGLRenderer;
@@ -28,6 +29,7 @@ export class VillageScene {
   private paths = new THREE.Group();
   private markers = new THREE.Group();
   private plannedPaths = new PlannedPaths();
+  private resourcePulses = new ResourcePulses();
   private previousPositions = new Map<number, Point>();
   private walkPoses = new Map<number, WalkPose>();
   private models = new Map<string, THREE.Group>();
@@ -150,6 +152,7 @@ export class VillageScene {
     this.selected.clear();
     this.selectedObject = null;
     this.plannedPaths.clearRoutes();
+    this.resourcePulses.clear();
     this.models.clear();
     this.previousPositions.clear();
     this.walkPoses.clear();
@@ -298,6 +301,16 @@ export class VillageScene {
     for (const v of w.villagers)
       this.previousPositions.set(v.id, { x: v.x, z: v.z });
   }
+  /** Called once after a successful player gather command, regardless of party size. */
+  flashResource(id: number) {
+    if (
+      !this.world?.villagers.some((v) => this.selected.has(v.id)) ||
+      !this.world.nodes.some((n) => n.id === id && n.amount > 0)
+    )
+      return;
+    const model = this.models.get(`resource:${id}`);
+    if (model) this.resourcePulses.start(model, performance.now());
+  }
   sync(w: World) {
     this.world = w;
     const alive = new Set<string>();
@@ -366,6 +379,7 @@ export class VillageScene {
     }
     for (const [key, g] of this.models)
       if (!alive.has(key)) {
+        this.resourcePulses.remove(g);
         this.entities.remove(g);
         disposeGroup(g);
         this.models.delete(key);
@@ -487,6 +501,7 @@ export class VillageScene {
   frame(now: number, alpha = 1, simulationDelta = 0) {
     const dt = Math.min(0.05, (now - this.lastTime) / 1000 || 0.016);
     this.lastTime = now;
+    this.resourcePulses.update(now);
     const right = new THREE.Vector3().setFromMatrixColumn(
       this.camera.matrix,
       0,
