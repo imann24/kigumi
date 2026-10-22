@@ -10,6 +10,7 @@ import {
   material,
   selectionFootprint,
   selectionRing,
+  setBuildingProgress,
   stone,
   treeModel,
   villagerModel,
@@ -17,6 +18,8 @@ import {
 } from "./art";
 import { advanceWalk, interpolatePosition, type WalkPose } from "./walking";
 import { PlannedPaths } from "./planned-paths";
+import { paddyHeight } from "./surfaces";
+import { ResourcePulses } from "./resource-pulses";
 export type Hit = { type: "villager" | "building" | "resource"; id: number };
 export class VillageScene {
   renderer: THREE.WebGLRenderer;
@@ -28,6 +31,7 @@ export class VillageScene {
   private paths = new THREE.Group();
   private markers = new THREE.Group();
   private plannedPaths = new PlannedPaths();
+  private resourcePulses = new ResourcePulses();
   private previousPositions = new Map<number, Point>();
   private walkPoses = new Map<number, WalkPose>();
   private models = new Map<string, THREE.Group>();
@@ -150,6 +154,7 @@ export class VillageScene {
     this.selected.clear();
     this.selectedObject = null;
     this.plannedPaths.clearRoutes();
+    this.resourcePulses.clear();
     this.models.clear();
     this.previousPositions.clear();
     this.walkPoses.clear();
@@ -258,6 +263,7 @@ export class VillageScene {
     // Clear the road surface (0.08) and raised bridge planks (0.225).
     // Depth testing still lets feet, buildings and foliage cover the markings.
     const w = this.world;
+    if (w && paddyHeight(w, p)) return paddyHeight(w, p) + 0.025;
     return w?.bridges.includes(cell(w, Math.floor(p.x), Math.floor(p.z)))
       ? 0.245
       : 0.1;
@@ -297,6 +303,16 @@ export class VillageScene {
   captureMovement(w: World) {
     for (const v of w.villagers)
       this.previousPositions.set(v.id, { x: v.x, z: v.z });
+  }
+  /** Called once after a successful player gather command, regardless of party size. */
+  flashResource(id: number) {
+    if (
+      !this.world?.villagers.some((v) => this.selected.has(v.id)) ||
+      !this.world.nodes.some((n) => n.id === id && n.amount > 0)
+    )
+      return;
+    const model = this.models.get(`resource:${id}`);
+    if (model) this.resourcePulses.start(model, performance.now());
   }
   sync(w: World) {
     this.world = w;
@@ -348,7 +364,7 @@ export class VillageScene {
         this.entities.add(g);
         this.models.set(key, g);
       }
-      g.scale.y = 0.15 + b.progress * 0.85;
+      setBuildingProgress(g, b.progress);
     }
     for (const v of w.villagers) {
       const key = `villager:${v.id}`;
@@ -366,6 +382,7 @@ export class VillageScene {
     }
     for (const [key, g] of this.models)
       if (!alive.has(key)) {
+        this.resourcePulses.remove(g);
         this.entities.remove(g);
         disposeGroup(g);
         this.models.delete(key);
@@ -410,10 +427,17 @@ export class VillageScene {
     const hits = this.ray.intersectObjects(this.entities.children, true);
     for (const hit of hits) {
       let obj: THREE.Object3D | null = hit.object;
+      let target: Hit | null = null;
       while (obj && obj !== this.entities) {
-        if (obj.userData.type) return obj.userData as Hit;
+        // Raycaster also intersects invisible objects, including unfinished roofs.
+        if (!obj.visible) {
+          target = null;
+          break;
+        }
+        if (obj.userData.type) target = obj.userData as Hit;
         obj = obj.parent;
       }
+      if (target) return target;
     }
     return null;
   }
@@ -487,6 +511,7 @@ export class VillageScene {
   frame(now: number, alpha = 1, simulationDelta = 0) {
     const dt = Math.min(0.05, (now - this.lastTime) / 1000 || 0.016);
     this.lastTime = now;
+    this.resourcePulses.update(now);
     const right = new THREE.Vector3().setFromMatrixColumn(
       this.camera.matrix,
       0,
@@ -544,7 +569,9 @@ export class VillageScene {
         g.getObjectByName("right-leg")!.rotation.x = -stride * 0.48;
         g.getObjectByName("left-arm")!.rotation.x = -stride * 0.32;
         g.getObjectByName("right-arm")!.rotation.x = stride * 0.32;
-        g.position.y = (1 - Math.cos(pose.phase * 2)) * 0.012 * pose.weight;
+        g.position.y =
+          paddyHeight(this.world!, p) +
+          (1 - Math.cos(pose.phase * 2)) * 0.012 * pose.weight;
         g.rotation.z = stride * 0.018;
       }
     }
