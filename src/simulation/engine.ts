@@ -1,5 +1,8 @@
 import {
   BUILDINGS,
+  RECRUIT_COST,
+  RECRUIT_DURATION,
+  RECRUIT_QUEUE_LIMIT,
   TECHS,
   type BuildingKind,
   type Resource,
@@ -72,6 +75,19 @@ export function capacity(w: World) {
 export function canAfford(w: World, cost: Partial<Stock>) {
   return Object.entries(cost).every(([k, v]) => w.stock[k as Resource] >= v);
 }
+export function recruitCount(w: World) {
+  return (w.recruit === null ? 0 : 1) + w.recruitQueue;
+}
+export function recruitError(w: World): string | null {
+  const count = recruitCount(w);
+  if (count >= RECRUIT_QUEUE_LIMIT)
+    return `Welcome queue full (${RECRUIT_QUEUE_LIMIT} villagers).`;
+  if (w.villagers.length + count >= capacity(w))
+    return "All housing or population places are filled or reserved. Build homes or raise the population limit.";
+  if (w.stock.food < RECRUIT_COST)
+    return `You need ${RECRUIT_COST} food to welcome a villager.`;
+  return null;
+}
 function spend(w: World, cost: Partial<Stock>) {
   for (const [k, v] of Object.entries(cost)) w.stock[k as Resource] -= v;
 }
@@ -112,6 +128,7 @@ export function createWorld(seed = 24601): World {
     techs: [],
     research: null,
     recruit: null,
+    recruitQueue: 0,
     relationships: {},
     log: [],
     config: { maxPopulation: 200, foodConsumption: 0.012 },
@@ -407,14 +424,11 @@ export function applyCommand(w: World, c: Command): CommandResult {
     return { ok: true };
   }
   if (c.type === "recruit") {
-    if (w.recruit !== null)
-      return fail("A new villager is already on the way.");
-    if (w.villagers.length >= capacity(w))
-      return fail("Build another house to welcome more villagers.");
-    if (w.stock.food < 35)
-      return fail("You need 35 food to welcome a villager.");
-    w.stock.food -= 35;
-    w.recruit = 0;
+    const error = recruitError(w);
+    if (error) return fail(error);
+    w.stock.food -= RECRUIT_COST;
+    if (w.recruit === null) w.recruit = 0;
+    else w.recruitQueue++;
     return { ok: true };
   }
   if (c.type === "demolish") {
@@ -818,14 +832,17 @@ export function step(w: World) {
     }
   }
   if (w.recruit !== null) {
-    w.recruit += STEP;
-    if (w.recruit >= 12 && w.villagers.length < capacity(w)) {
+    w.recruit = Math.min(RECRUIT_DURATION, w.recruit + STEP);
+    if (w.recruit >= RECRUIT_DURATION && w.villagers.length < capacity(w)) {
       const hall = w.buildings.find((b) => b.kind === "hall")!;
       const p = perimeter(w, hall, ...dimensions(hall))[0];
       if (p) {
         addVillager(w, { x: p.x + 0.5, z: p.z + 0.5 });
         log(w, `${w.villagers.at(-1)!.name} has joined the village.`);
-        w.recruit = null;
+        if (w.recruitQueue > 0) {
+          w.recruitQueue--;
+          w.recruit = 0;
+        } else w.recruit = null;
       }
     }
   }

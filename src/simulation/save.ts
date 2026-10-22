@@ -1,4 +1,4 @@
-import { BUILDINGS, TECHS } from "./catalog";
+import { BUILDINGS, RECRUIT_QUEUE_LIMIT, TECHS } from "./catalog";
 import { dimensions, inside } from "./grid";
 import type { World } from "./types";
 const AUTO = "kigumi.autosave.v1",
@@ -169,6 +169,13 @@ export function deserialize(raw: string): World {
   )
     bad();
   if (w.recruit !== null && !finite(w.recruit)) bad();
+  // Earlier v1 saves contain only the active welcome. Keep its paid progress intact.
+  if (!Object.hasOwn(w, "recruitQueue")) w.recruitQueue = 0;
+  if (
+    !integer(w.recruitQueue, 0, RECRUIT_QUEUE_LIMIT - 1) ||
+    (w.recruit === null && w.recruitQueue !== 0)
+  )
+    bad();
   if (
     !w.relationships ||
     typeof w.relationships !== "object" ||

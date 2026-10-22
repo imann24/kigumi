@@ -3,6 +3,7 @@ import "./style.css";
 import {
   BUILDINGS,
   RESOURCE_LABEL,
+  RECRUIT_COST,
   TECHS,
   type BuildingKind,
   type Resource,
@@ -14,6 +15,8 @@ import {
   morale,
   placementError,
   researchError,
+  recruitCount,
+  recruitError,
   STEP,
 } from "./simulation/engine";
 import { dimensions } from "./simulation/grid";
@@ -31,7 +34,10 @@ import {
   contextualOrder,
   type ActionCursor,
 } from "./game/contextual-actions";
+import { installMinimapPan } from "./game/minimap-pan";
+import { installSpacePan } from "./game/camera-pan";
 import { thumbnails } from "./game/thumbnails";
+import { productionMarkup } from "./game/production";
 import { icon } from "./icons";
 const $ = <T extends HTMLElement = HTMLElement>(id: string) =>
   document.getElementById(id) as T;
@@ -86,13 +92,13 @@ app.innerHTML = `
     <button class="village-stat" id="population" title="Village overview">${icon("people", 21)}<span><strong id="pop">10 / 20</strong><small>Villagers</small></span></button>
     <button class="village-stat" id="community" title="Community and connections">${icon("heart", 20)}<span><strong id="morale">Content</strong><small id="morale-value">75% belonging</small></span></button>
   </header>
-  <div class="top-actions"><span class="season">${icon("sun", 17)} <span id="day">Day 1</span></span><div class="time-controls"><button id="pause" aria-label="Pause" title="Pause / resume [Space]">${icon("pause", 16)}</button><button data-speed="1" class="active">1×</button><button data-speed="2">2×</button><button data-speed="4">4×</button></div><button class="square" id="save" aria-label="Save game" title="Save game [Ctrl / Cmd + S]">${icon("save")}</button><button class="square" id="settings" aria-label="Settings" title="Settings and saves">${icon("gear")}</button></div>
+  <div class="top-actions"><span class="season">${icon("sun", 17)} <span id="day">Day 1</span></span><div class="time-controls"><button id="pause" aria-label="Pause" title="Pause / resume [tap Space]">${icon("pause", 16)}</button><button data-speed="1" class="active">1×</button><button data-speed="2">2×</button><button data-speed="4">4×</button></div><button class="square" id="save" aria-label="Save game" title="Save game [Ctrl / Cmd + S]">${icon("save")}</button><button class="square" id="settings" aria-label="Settings" title="Settings and saves">${icon("gear")}</button></div>
   <details class="journal chrome-panel" data-panel="journal"><summary>${icon("leaf", 16)} Progress & research</summary><div class="panel-content"><div id="milestones"></div><button id="research" class="text-button">Knowledge tree ${icon("arrow", 15)}</button></div></details>
   <details id="inspector-panel" class="inspector-panel chrome-panel" hidden open><summary>Selection</summary><aside id="inspector" class="inspector"></aside></details>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <div id="build-hint" class="build-hint" hidden><div id="build-description"></div><output id="build-facing" aria-live="polite"></output><button id="rotate-building" title="Rotate building 90° [R]" aria-label="Rotate building 90 degrees">↶ Rotate 90° <kbd>R</kbd></button><span><kbd>Esc</kbd> Cancel</span></div>
   <div id="selection-box" class="selection-box" hidden></div>
-  <details class="map-panel chrome-panel" data-panel="map" open><summary>${icon("flag", 13)} Map</summary><div class="panel-content"><button id="home" class="map-center" title="Center on the village [Home]">Center village ↗</button><canvas id="minimap" width="160" height="128" aria-label="Minimap; click to move camera"></canvas><div class="map-footer"><span class="live-dot"></span><span id="save-status">Saved on this device</span></div></div></details>
+  <details class="map-panel chrome-panel" data-panel="map" open><summary>${icon("flag", 13)} Map</summary><div class="panel-content"><button id="home" class="map-center" title="Center on the village [Home]">Center village ↗</button><canvas id="minimap" width="160" height="128" aria-label="Minimap; click or drag to move camera"></canvas><div class="map-footer"><span class="live-dot"></span><span id="save-status">Saved on this device</span></div></div></details>
   <details id="build-panel" class="build-panel chrome-panel" data-panel="build" open><summary>${icon("house", 17)} Build <kbd>B</kbd></summary><div class="build-body"><div class="build-heading"><div class="build-tabs"><button class="active" data-category="all">Homes & community</button><button data-category="production">Production</button><button data-category="paths">Paths & crossings</button></div><button id="grid" title="Show grid [G]">${icon("plus", 14)} Grid <kbd>G</kbd></button></div><div id="build-cards" class="build-cards"></div></div></details>
   <footer><button id="help" title="Controls and field guide [?]">${icon("help", 15)} Help <kbd>?</kbd></button></footer>
   <button id="chrome-toggle" class="square" aria-label="Hide interface" aria-pressed="false" title="Hide interface [H]">${icon("panels", 16)}</button>
@@ -239,6 +245,7 @@ function renderInspector() {
   const w = session.world,
     el = $("inspector");
   const close = `<button class="close-small" id="clear-selection" aria-label="Clear selection">${icon("close", 16)}</button>`;
+  const welcomeControl = `<button class="primary" id="welcome" aria-describedby="welcome-requirement">${icon("plus", 16)} <span class="welcome-label" id="welcome-label">Welcome a villager</span><span>${RECRUIT_COST} food</span></button><p class="small-note" id="welcome-requirement"></p>`;
   if (selected.length) {
     const villagers = w.villagers.filter((v) => selected.includes(v.id));
     const v = villagers[0];
@@ -287,7 +294,7 @@ function renderInspector() {
     );
     setMarkup(
       el,
-      `${close}<span class="eyebrow">${b.progress < 1 ? "UNDER CONSTRUCTION" : "VILLAGE BUILDING"}</span><img class="inspector-art" src="${thumbs[b.kind]}" alt=""/><h2>${def.name}</h2><p>${def.description}</p>${b.progress < 1 ? `<div class="detail-row"><span>Construction</span><b>${Math.floor(b.progress * 100)}%</b></div><div class="meter"><i style="width:${b.progress * 100}%"></i></div>` : ""}<div class="detail-row"><span>Assigned villagers</span><b>${workers.length}</b></div>${workers.length ? `<p class="small-note">${workers.map((v) => escape(v.name)).join(", ")}</p><button class="wide-button" id="select-workers">Select workers</button>` : ""}${b.kind === "hall" ? `<button class="primary" id="welcome">${icon("plus", 16)} Welcome a villager <span>35 food</span></button>` : ""}${b.kind === "farm" || b.kind === "workshop" || b.progress < 1 ? `<button class="wide-button" id="assign-nearest">${icon("people", 16)} Assign nearest villager</button>` : ""}${b.kind !== "hall" ? '<button class="danger-link" id="demolish">Dismantle · recover 50%</button>' : ""}`,
+      `${close}<span class="eyebrow">${b.progress < 1 ? "UNDER CONSTRUCTION" : "VILLAGE BUILDING"}</span><img class="inspector-art" src="${thumbs[b.kind]}" alt=""/><h2>${def.name}</h2><p>${def.description}</p>${b.progress < 1 ? `<div class="detail-row"><span>Construction</span><b>${Math.floor(b.progress * 100)}%</b></div><div class="meter"><i style="width:${b.progress * 100}%"></i></div>` : ""}<div class="detail-row"><span>Assigned villagers</span><b>${workers.length}</b></div>${workers.length ? `<p class="small-note">${workers.map((v) => escape(v.name)).join(", ")}</p><button class="wide-button" id="select-workers">Select workers</button>` : ""}${b.kind === "hall" ? `<div id="production-status"></div>${welcomeControl}` : ""}${b.kind === "farm" || b.kind === "workshop" || b.progress < 1 ? `<button class="wide-button" id="assign-nearest">${icon("people", 16)} Assign nearest villager</button>` : ""}${b.kind !== "hall" ? '<button class="danger-link" id="demolish">Dismantle · recover 50%</button>' : ""}`,
     );
     if ($("select-workers"))
       $("select-workers").onclick = () => select(workers.map((v) => v.id));
@@ -326,13 +333,64 @@ function renderInspector() {
   } else {
     setMarkup(
       el,
-      `<span class="eyebrow">A PLACE TO BELONG</span><h2>Village life</h2><div class="village-portrait">${icon("hall", 34)}<span>Growing gently.<small>Every path is a possibility.</small></span></div><div class="detail-row"><span>Homes & gathering places</span><b>${w.buildings.filter((b) => b.progress === 1 && ["hall", "house", "tea", "shrine"].includes(b.kind)).length}</b></div><div class="detail-row"><span>Working villagers</span><b>${w.villagers.filter((v) => !["idle", "move"].includes(v.order.type)).length} / ${w.villagers.length}</b></div><div class="detail-row"><span>Space to grow</span><b>${Math.max(0, capacity(w) - w.villagers.length)} places</b></div><button class="primary" id="welcome" ${w.recruit !== null ? "disabled" : ""}>${icon("plus", 16)} ${w.recruit !== null ? "A villager is on the way…" : "Welcome a villager"} ${w.recruit === null ? "<span>35 food</span>" : ""}</button><p class="small-note">${w.recruit !== null ? "Preparing a warm welcome." : "Build homes, connect workplaces, and let your village find its rhythm."}</p><div class="inspector-rule"></div><span class="eyebrow">AROUND THE VILLAGE</span><p class="latest-event">${escape(w.log.at(-1)?.text ?? "")}</p>`,
+      `<span class="eyebrow">A PLACE TO BELONG</span><h2>Village life</h2><div class="village-portrait">${icon("hall", 34)}<span>Growing gently.<small>Every path is a possibility.</small></span></div><div class="detail-row"><span>Homes & gathering places</span><b>${w.buildings.filter((b) => b.progress === 1 && ["hall", "house", "tea", "shrine"].includes(b.kind)).length}</b></div><div class="detail-row"><span>Working villagers</span><b>${w.villagers.filter((v) => !["idle", "move"].includes(v.order.type)).length} / ${w.villagers.length}</b></div><div class="detail-row"><span>Space to grow</span><b>${Math.max(0, capacity(w) - w.villagers.length - recruitCount(w))} unreserved places</b></div>${welcomeControl}<p class="small-note">${recruitCount(w)} villagers on the way. Select the hall to see the welcome queue and research.</p><div class="inspector-rule"></div><span class="eyebrow">AROUND THE VILLAGE</span><p class="latest-event">${escape(w.log.at(-1)?.text ?? "")}</p>`,
     );
     $("welcome").onclick = () => dispatch({ type: "recruit" });
   }
   $("inspector-panel").querySelector("summary")!.textContent =
     el.querySelector("h2")?.textContent ?? "Selection";
   if ($("clear-selection")) $("clear-selection").onclick = () => select([]);
+  const welcome = $<HTMLButtonElement>("welcome");
+  if (welcome) {
+    const error = recruitError(w);
+    welcome.disabled = !!error;
+    welcome.title = error ?? "Reserve one place and pay for a villager";
+    $("welcome-label").textContent =
+      w.recruit === null ? "Welcome a villager" : "Queue a villager";
+    $("welcome-requirement").textContent =
+      error ?? `${RECRUIT_COST} food and one place reserved per order.`;
+  }
+  renderProduction();
+}
+function renderProduction() {
+  const el = $("production-status");
+  if (!el || focus?.type !== "building") return;
+  const parts = productionMarkup(
+    session.world,
+    focus.id,
+    !speed || !!modal || document.hidden,
+  );
+  if (!parts) return;
+  setMarkup(
+    el,
+    `<section class="production-status" aria-label="Production and research"><div id="welcome-active"></div><div id="welcome-queue" tabindex="-1"></div><div id="research-active"></div></section>`,
+  );
+  setMarkup($("welcome-active"), parts.welcome);
+  const queue = $("welcome-queue");
+  queue.onkeydown = (e) => {
+    // Let the focused list scroll without panning the camera or toggling pause.
+    if (
+      [
+        "ArrowUp",
+        "ArrowDown",
+        "PageUp",
+        "PageDown",
+        "Home",
+        "End",
+        "Space",
+      ].includes(e.code)
+    )
+      e.stopPropagation();
+  };
+  const oldList = queue.querySelector("ol"),
+    scroll = oldList?.scrollTop ?? 0;
+  const focused = document.activeElement === oldList;
+  setMarkup(queue, parts.queue);
+  const list = queue.querySelector("ol");
+  if (list) list.scrollTop = scroll;
+  if (focused && document.activeElement !== list)
+    (list ?? queue).focus({ preventScroll: true });
+  setMarkup($("research-active"), parts.research);
 }
 function renderUi() {
   const w = session.world;
@@ -491,8 +549,22 @@ function drawMap() {
   }
   ctx.strokeStyle = "#fff9dd";
   ctx.lineWidth = 1;
-  const t = scene.controls.target;
-  ctx.strokeRect(t.x * sx - 22, t.z * sz - 16, 44, 32);
+  const rect = scene.canvas.getBoundingClientRect();
+  const corners = [
+    [rect.left, rect.top],
+    [rect.right, rect.top],
+    [rect.right, rect.bottom],
+    [rect.left, rect.bottom],
+  ].map(([x, y]) => scene.pointerWorld(x, y));
+  if (corners.every((p) => p !== null)) {
+    ctx.beginPath();
+    corners.forEach((p, i) => {
+      if (i === 0) ctx.moveTo(p.x * sx, p.z * sz);
+      else ctx.lineTo(p.x * sx, p.z * sz);
+    });
+    ctx.closePath();
+    ctx.stroke();
+  }
 }
 function save(manual = false) {
   try {
@@ -530,6 +602,7 @@ function replaceWorld(w: World) {
 }
 function closeModal() {
   modal = "";
+  renderProduction();
   $("modal-layer").hidden = true;
   $("modal-layer").innerHTML = "";
   lastFrame = performance.now();
@@ -572,6 +645,7 @@ function renderResearch() {
 }
 function openModal(type: string) {
   modal = type;
+  renderProduction();
   if (type === "research") {
     renderResearch();
     return;
@@ -580,7 +654,7 @@ function openModal(type: string) {
     modalShell(
       "A village, at your own pace.",
       "There is no finish line. Find a rhythm, make connections, and build somewhere worth belonging.",
-      `<div class="guide-grid"><article>${icon("people", 27)}<h3>Give a little direction</h3><p>Click a villager or drag a selection box. Shift adds to your selection. Right-click resources to gather, unfinished buildings to construct, paddies or workshops to assign work, and ground to move.</p></article><article>${icon("road", 27)}<h3>Make every journey count</h3><p>Workers carry resources to the nearest reachable hall or storehouse. Paths make walking 45% faster. Keep routes open around buildings. Drag to lay paths; build bridges tile by tile across water. Use Lift a path to rearrange routes.</p></article><article>${icon("house", 27)}<h3>Grow thoughtfully</h3><p>Select a building below, then place it on the grid. R or Rotate 90° cycles through four directions; Escape cancels. A new building choice starts facing South. Selected villagers build it, or two nearby auto-workers help. Homes increase capacity. Welcome villagers for 35 food.</p></article><article>${icon("heart", 27)}<h3>Leave room for togetherness</h3><p>Villagers meet as their paths cross. Shared traditions unlock tea houses and shrines, improving nearby morale and bonds. Food shortages gently reduce morale and work speed; nobody dies.</p></article></div><div class="shortcut-list"><span><kbd>Space</kbd> Pause</span><span><kbd>WASD / arrows</kbd> Pan</span><span><kbd>Q / E</kbd> Rotate</span><span><kbd>Middle drag</kbd> Orbit</span><span><kbd>Scroll</kbd> Zoom</span><span><kbd>B</kbd> Build panel</span><span><kbd>H</kbd> Hide interface</span><span><kbd>G</kbd> Grid</span><span><kbd>I</kbd> Select idle</span><span><kbd>Home</kbd> Center</span><span><kbd>1 / 2 / 4</kbd> Speed</span><span><kbd>Ctrl / Cmd + S</kbd> Save</span></div><p class="small-note">Auto-work finds a new job when a resource is exhausted or construction finishes. Explicit move orders end in standing by. Your village pauses while a menu is open or the game is closed.</p>`,
+      `<div class="guide-grid"><article>${icon("people", 27)}<h3>Give a little direction</h3><p>Click a villager or drag a selection box. Shift adds to your selection. Right-click resources to gather, unfinished buildings to construct, paddies or workshops to assign work, and ground to move.</p></article><article>${icon("road", 27)}<h3>Make every journey count</h3><p>Workers carry resources to the nearest reachable hall or storehouse. Paths make walking 45% faster. Keep routes open around buildings. Drag to lay paths; build bridges tile by tile across water. Use Lift a path to rearrange routes.</p></article><article>${icon("house", 27)}<h3>Grow thoughtfully</h3><p>Select a building below, then place it on the grid. R or Rotate 90° cycles through four directions; Escape cancels. A new building choice starts facing South. Selected villagers build it, or two nearby auto-workers help. Homes increase capacity. Welcome villagers for 35 food.</p></article><article>${icon("heart", 27)}<h3>Leave room for togetherness</h3><p>Villagers meet as their paths cross. Shared traditions unlock tea houses and shrines, improving nearby morale and bonds. Food shortages gently reduce morale and work speed; nobody dies.</p></article></div><div class="shortcut-list"><span><kbd>Tap Space</kbd> Pause</span><span><kbd>Space + left drag</kbd> Pan</span><span><kbd>WASD / arrows</kbd> Pan</span><span><kbd>Q / E</kbd> Rotate</span><span><kbd>Middle drag</kbd> Orbit</span><span><kbd>Scroll</kbd> Zoom at cursor</span><span><kbd>B</kbd> Build panel</span><span><kbd>H</kbd> Hide interface</span><span><kbd>G</kbd> Grid</span><span><kbd>I</kbd> Select idle</span><span><kbd>Minimap drag</kbd> Pan</span><span><kbd>Home</kbd> Center</span><span><kbd>1 / 2 / 4</kbd> Speed</span><span><kbd>Ctrl / Cmd + S</kbd> Save</span></div><p class="small-note">Auto-work finds a new job when a resource is exhausted or construction finishes. Explicit move orders end in standing by. Your village pauses while a menu is open or the game is closed.</p>`,
     );
   } else if (type === "settings") {
     modalShell(
@@ -670,6 +744,19 @@ scene.cursor.resolve = (x, y) => {
   return value;
 };
 
+const cameraPan = installSpacePan(scene, {
+  enabled: () => !modal,
+  tap: () => setSpeed(speed ? 0 : 1),
+  start: () => {
+    drag = null;
+    $("selection-box").hidden = true;
+  },
+  move: (from, to) => scene.panPointer(from, to),
+  hover: (x, y) => {
+    pointer = scene.pointerWorld(x, y);
+    updatePreview();
+  },
+});
 canvas.addEventListener("pointerdown", (e) => {
   if (e.button !== 0 || e.ctrlKey) return;
   pointer = scene.pointerWorld(e.clientX, e.clientY);
@@ -683,6 +770,7 @@ canvas.addEventListener("pointerdown", (e) => {
   canvas.setPointerCapture(e.pointerId);
 });
 canvas.addEventListener("pointermove", (e) => {
+  if (e.defaultPrevented) return;
   pointer = scene.pointerWorld(e.clientX, e.clientY);
   updatePreview();
   if (!drag) return;
@@ -737,7 +825,7 @@ canvas.addEventListener("contextmenu", (e) => {
   }
 });
 window.addEventListener("pointerup", (e) => {
-  if (e.button !== 0 || e.ctrlKey || !drag) return;
+  if (e.defaultPrevented || e.button !== 0 || e.ctrlKey || !drag) return;
   const start = drag;
   drag = null;
   $("selection-box").hidden = true;
@@ -761,6 +849,7 @@ function setSpeed(n: number) {
     );
   $("pause").innerHTML = icon(n ? "pause" : "play", 16);
   $("pause").setAttribute("aria-label", n ? "Pause" : "Resume");
+  renderProduction();
 }
 $("pause").onclick = () => setSpeed(speed ? 0 : 1);
 document
@@ -783,14 +872,24 @@ $("grid").onclick = () => {
   scene.showGrid(grid || !!build);
   $("grid").classList.toggle("active", grid);
 };
-$("minimap").onclick = (e) => {
-  const r = $("minimap").getBoundingClientRect();
-  scene.focus({
-    x: ((e.clientX - r.left) / r.width) * session.world.size,
-    z: ((e.clientY - r.top) / r.height) * session.world.size,
-  });
+installMinimapPan($<HTMLCanvasElement>("minimap"), {
+  size: () => session.world.size,
+  start: () => {
+    cameraPan.cancel();
+    drag = null;
+    $("selection-box").hidden = true;
+  },
+  move: (p) => {
+    scene.focus(p);
+    drawMap();
+  },
+});
+canvas.addEventListener("wheel", (e) => {
+  pointer = scene.pointerWorld(e.clientX, e.clientY);
+  updatePreview();
   drawMap();
-};
+});
+scene.controls.addEventListener("change", drawMap);
 $("modal-layer").onclick = (e) => {
   if (e.target === $("modal-layer")) closeModal();
 };
@@ -853,14 +952,9 @@ window.addEventListener("keydown", (e) => {
     return;
   }
   if (e.target instanceof HTMLInputElement || modal) return;
-  if (
-    ["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(
-      e.code,
-    )
-  )
+  if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.code))
     e.preventDefault();
   if (e.repeat) return;
-  if (e.code === "Space") setSpeed(speed ? 0 : 1);
   if (e.code === "KeyH" && !e.ctrlKey && !e.metaKey && !e.altKey)
     toggleChrome();
   if (e.code === "KeyB" && !e.ctrlKey && !e.metaKey && !e.altKey) {
@@ -890,6 +984,7 @@ window.addEventListener("beforeunload", () => save());
 document.addEventListener("visibilitychange", () => {
   lastFrame = performance.now();
   if (document.hidden) save();
+  renderProduction();
 });
 let animationFrame = 0;
 function frame(now: number) {
