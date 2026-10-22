@@ -1,6 +1,6 @@
 import type { BuildingKind } from "../simulation/catalog";
-import { orderError, placementError } from "../simulation/engine";
-import { dimensions, findPath, perimeter } from "../simulation/grid";
+import { approachPath, orderError, placementError } from "../simulation/engine";
+import { dimensions, farmWorkSpots, perimeter } from "../simulation/grid";
 import type { Order, Point, World } from "../simulation/types";
 import type { Hit } from "./scene";
 
@@ -50,15 +50,20 @@ export function contextualCursor(
     order.type === "gather"
       ? w.nodes.find((n) => n.id === order.target)!
       : w.buildings.find((b) => b.id === order.target)!;
-  const goals =
-    "progress" in target
+  const farm =
+    order.type === "work" && "progress" in target && target.kind === "farm"
+      ? target
+      : null;
+  const goals = farm
+    ? farmWorkSpots(w, farm)
+    : "progress" in target
       ? perimeter(w, target, ...dimensions(target))
       : perimeter(w, target);
   // Match the simulation's approach routing. A mixed group is useful when at
   // least one selected villager can reach the target; never advertise a sealed site.
   if (
     !w.villagers.some(
-      (v) => ids.includes(v.id) && findPath(w, v, goals) !== null,
+      (v) => ids.includes(v.id) && approachPath(w, v, goals, farm?.id) !== null,
     )
   )
     return null;

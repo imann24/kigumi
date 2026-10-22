@@ -11,10 +11,12 @@ import {
   cell,
   dimensions,
   distance,
+  farmWorkSpots,
   findPath,
   inside,
   invalidateNavigation,
   perimeter,
+  routeWalkable,
   walkable,
 } from "./grid";
 import type {
@@ -251,7 +253,9 @@ export function placementError(
       return "Connect this site to the village first.";
     if (
       w.villagers.some(
-        (v) => !reachable.has(cell(preview, Math.floor(v.x), Math.floor(v.z))),
+        (v) =>
+          !reachable.has(cell(preview, Math.floor(v.x), Math.floor(v.z))) &&
+          findPath(preview, v, home) === null,
       )
     )
       return "This would cut off a villager’s route home.";
@@ -493,8 +497,20 @@ function approach(
   depth = 1,
 ): boolean {
   const goals = perimeter(w, p, width, depth);
-  if (goals.some((g) => Math.floor(v.x) === g.x && Math.floor(v.z) === g.z))
-    return true;
+  return approachSpots(w, v, goals);
+}
+/** Read-only route used by work execution and contextual action feedback. */
+export function approachPath(
+  w: World,
+  v: Villager,
+  goals: Point[],
+  farmId?: number,
+): Point[] | null {
+  if (
+    farmId === undefined &&
+    goals.some((g) => Math.floor(v.x) === g.x && Math.floor(v.z) === g.z)
+  )
+    return [];
   const free = goals.filter(
     (g) =>
       !w.villagers.some(
@@ -506,7 +522,21 @@ function approach(
               Math.floor(other.path.at(-1)!.z) === g.z)),
       ),
   );
-  const path = findPath(w, v, free.length ? free : goals);
+  // Paddy spots are exclusive; a full paddy waits instead of stacking farmers.
+  return findPath(
+    w,
+    v,
+    farmId !== undefined || free.length ? free : goals,
+    farmId,
+  );
+}
+function approachSpots(
+  w: World,
+  v: Villager,
+  goals: Point[],
+  farmId?: number,
+): boolean {
+  const path = approachPath(w, v, goals, farmId);
   if (path === null) {
     v.task = "Route blocked";
     v.blocked = 8;
@@ -544,10 +574,7 @@ function chooseWork(w: World, v: Villager) {
           (a) => a.order.type === "work" && a.order.target === b.id,
         ).length < 3,
     );
-    if (
-      farm &&
-      findPath(w, v, perimeter(w, farm, ...dimensions(farm))) !== null
-    ) {
+    if (farm && findPath(w, v, farmWorkSpots(w, farm), farm.id) !== null) {
       assign(v, { type: "work", target: farm.id });
       return;
     }
@@ -606,12 +633,17 @@ function updateVillager(w: World, v: Villager) {
     return;
   }
   if (v.path.length) {
+    const allowed = routeWalkable(
+      w,
+      v,
+      v.order.type === "work" ? v.order.target : undefined,
+    );
     // Spend the whole tick's travel time, even when it crosses a tile center.
     // Dropping the remainder made walkers briefly slow down at every waypoint.
     let remaining = STEP;
     while (remaining > 0 && v.path.length) {
       const p = v.path[0];
-      if (!walkable(w, Math.floor(p.x), Math.floor(p.z))) {
+      if (!allowed(Math.floor(p.x), Math.floor(p.z))) {
         v.path = [];
         break;
       }
@@ -733,7 +765,12 @@ function updateVillager(w: World, v: Villager) {
         return;
       }
       v.task = b.kind === "farm" ? "Tending rice" : "Crafting insight";
-      if (!approach(w, v, b, ...dimensions(b))) return;
+      if (
+        !(b.kind === "farm"
+          ? approachSpots(w, v, farmWorkSpots(w, b), b.id)
+          : approach(w, v, b, ...dimensions(b)))
+      )
+        return;
       if (b.kind === "farm") {
         if (v.cargo && v.cargo.kind !== "food") {
           deliver(w, v);

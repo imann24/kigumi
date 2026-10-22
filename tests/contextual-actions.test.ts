@@ -8,8 +8,15 @@ import {
   createWorld,
   orderError,
   placementError,
+  step,
 } from "../src/simulation/engine";
-import { cell, invalidateNavigation } from "../src/simulation/grid";
+import {
+  cell,
+  farmWorkSpots,
+  invalidateNavigation,
+  perimeter,
+  dimensions,
+} from "../src/simulation/grid";
 import type { Building, Order } from "../src/simulation/types";
 
 function clearing() {
@@ -114,6 +121,128 @@ describe("contextual actions share picking and command eligibility", () => {
       }
       w.buildings.pop();
       expect(contextualCursor(w, ids, hit, null)).toBeNull();
+    },
+  );
+
+  it.each(["inside", "approaching"] as const)(
+    "uses the real paddy route for a farmer %s the footprint",
+    (position) => {
+      const w = clearing();
+      const farm: Building = {
+        id: w.nextId++,
+        kind: "farm",
+        x: 5,
+        z: 9,
+        rotation: 0,
+        progress: 1,
+      };
+      w.buildings.push(farm);
+      const worker = w.villagers[0];
+      Object.assign(
+        worker,
+        position === "inside" ? { x: 6.5, z: 10.5 } : { x: 4.5, z: 10.5 },
+      );
+      if (position === "inside") {
+        // No perimeter is reachable, but the current interior work spot is valid.
+        for (const p of perimeter(w, farm, ...dimensions(farm)))
+          w.terrain[cell(w, p.x, p.z)] = 1;
+      }
+      invalidateNavigation(w);
+      const hit = { type: "building", id: farm.id } as const;
+      const ids = [worker.id];
+      expect(contextualCursor(w, ids, hit, null)).toBe("farm");
+      const order = contextualOrder(w, hit, null)!;
+      expect(applyCommand(w, { type: "order", ids, order }).ok).toBe(true);
+      step(w);
+      const endpoint = worker.path.at(-1) ?? worker;
+      expect(farmWorkSpots(w, farm)).toContainEqual({
+        x: Math.floor(endpoint.x),
+        z: Math.floor(endpoint.z),
+      });
+      expect(contextualCursor(w, ids, hit, null)).toBe("farm");
+      for (let i = 0; i < 32; i++) step(w);
+      expect(worker.cargo?.kind).toBe("food");
+      expect(worker.cargo!.amount).toBeGreaterThan(0);
+      expect(contextualCursor(w, ids, hit, null)).toBe("farm");
+    },
+  );
+
+  it("rejects a paddy when only its diagonal perimeter corners are reachable", () => {
+    const w = clearing();
+    const farm: Building = {
+      id: w.nextId++,
+      kind: "farm",
+      x: 5,
+      z: 9,
+      rotation: 0,
+      progress: 1,
+    };
+    w.buildings.push(farm);
+    const [width, depth] = dimensions(farm);
+    for (const p of perimeter(w, farm, width, depth)) {
+      const corner =
+        (p.x === farm.x - 1 || p.x === farm.x + width) &&
+        (p.z === farm.z - 1 || p.z === farm.z + depth);
+      if (!corner) w.terrain[cell(w, p.x, p.z)] = 1;
+    }
+    const worker = w.villagers[0];
+    Object.assign(worker, { x: farm.x - 0.5, z: farm.z - 0.5 });
+    invalidateNavigation(w);
+    expect(perimeter(w, farm, width, depth)).toHaveLength(4);
+    expect(perimeter(w, farm, width, depth)).toContainEqual({
+      x: Math.floor(worker.x),
+      z: Math.floor(worker.z),
+    });
+    const hit = { type: "building", id: farm.id } as const;
+    expect(contextualCursor(w, [worker.id], hit, null)).toBeNull();
+    applyCommand(w, {
+      type: "order",
+      ids: [worker.id],
+      order: contextualOrder(w, hit, null)!,
+    });
+    step(w);
+    expect(worker.task).toBe("Route blocked");
+    expect(worker.cargo).toBeNull();
+  });
+
+  it.each(["blocked", "occupied", "reserved"] as const)(
+    "does not advertise paddy work when interior spots are %s",
+    (reason) => {
+      const w = clearing();
+      const farm: Building = {
+        id: w.nextId++,
+        kind: "farm",
+        x: 5,
+        z: 9,
+        rotation: 0,
+        progress: 1,
+      };
+      w.buildings.push(farm);
+      invalidateNavigation(w);
+      const spots = farmWorkSpots(w, farm);
+      for (const [i, p] of spots.entries()) {
+        if (reason === "blocked")
+          w.nodes.push({
+            id: w.nextId++,
+            kind: "stone",
+            ...p,
+            amount: 100,
+            variant: 0,
+          });
+        else if (reason === "occupied")
+          Object.assign(w.villagers[i + 1], { x: p.x + 0.5, z: p.z + 0.5 });
+        else w.villagers[i + 1].path = [{ x: p.x + 0.5, z: p.z + 0.5 }];
+      }
+      invalidateNavigation(w);
+      expect(perimeter(w, farm, ...dimensions(farm)).length).toBeGreaterThan(0);
+      expect(
+        contextualCursor(
+          w,
+          [w.villagers[0].id],
+          { type: "building", id: farm.id },
+          null,
+        ),
+      ).toBeNull();
     },
   );
 
