@@ -31,21 +31,25 @@ You begin with ten villagers, a hall, two homes, a storehouse, and a rice paddy.
 - Five technologies unlock workshops, tea houses and shrines, improve carrying capacity, cultivation and craft. Workshops need assigned workers to produce insight; the hall produces it slowly on its own.
 - Food consumption is gentle and never kills residents. Proximity creates acquaintances, friendships and occasional friction. Amenities lift nearby morale and strengthen warm encounters. Town management comes first.
 
-| Control                      | Action                |
-| ---------------------------- | --------------------- |
-| WASD / arrows                | Pan                   |
-| Q / E or middle-button drag  | Orbit                 |
-| R (while placing a building) | Rotate building 90°   |
-| Scroll                       | Zoom                  |
-| Home                         | Center camera         |
-| Space                        | Pause/resume          |
-| 1 / 2 / 4                    | Simulation speed      |
-| G                            | Toggle grid           |
-| B                            | Toggle build panel    |
-| H                            | Hide/show interface   |
-| I                            | Select idle villagers |
-| Ctrl / Cmd + S               | Manual save           |
-| ?                            | Field guide           |
+| Control                      | Action                    |
+| ---------------------------- | ------------------------- |
+| WASD / arrows                | Pan                       |
+| Q / E or middle-button drag  | Orbit                     |
+| R (while placing a building) | Rotate building 90°       |
+| Scroll                       | Zoom at cursor            |
+| Minimap click / drag         | Center / pan camera       |
+| Home                         | Center camera             |
+| Tap Space                    | Pause/resume              |
+| Space + left-button drag     | Pan by dragging the world |
+| 1 / 2 / 4                    | Simulation speed          |
+| G                            | Toggle grid               |
+| B                            | Toggle build panel        |
+| H                            | Hide/show interface       |
+| I                            | Select idle villagers     |
+| Ctrl / Cmd + S               | Manual save               |
+| ?                            | Field guide               |
+
+Hold **Space** for a hand cursor, then left-drag to pan (including in build mode). Release Space or the mouse to stop panning; a pan never toggles pause. Escape or switching away cancels the gesture. Space keeps its normal behavior in focused buttons and text fields. Scroll zooms toward or away from the ground under your cursor; at the map boundary, camera limits take priority. Click or drag the minimap to move the camera continuously.
 
 Panel headings collapse the build palette, map, progress, and selection details. Build, map, and progress panel preferences are remembered on this device. Selection details appear when you select an object; click the population count for the village overview. **H** hides the interface while keeping a restore button visible.
 
