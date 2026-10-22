@@ -698,6 +698,7 @@ canvas.addEventListener("contextmenu", (e) => {
     else toast("Right-click a paddy, workshop, resource, or open ground.");
   } else if (p) order = { type: "move", target: p };
   if (order && dispatch({ type: "order", ids: selected, order })) {
+    if (order.type === "gather") scene.flashResource(order.target);
     toast(
       order.type === "move"
         ? "On our way."
