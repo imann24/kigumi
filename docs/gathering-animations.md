@@ -18,10 +18,11 @@ The hall's passive insight has no assigned worker and needs no gathering animati
 
 ## Verification
 
-- Vitest: 160 tests passed, including 13 focused gathering tests and the integrated paddy, construction, resource-pulse, walking and simulation suites.
+- Vitest: 251 tests passed, including 13 focused gathering tests and the integrated paddy, construction, resource-pulse, walking and simulation suites.
 - TypeScript, Prettier, production build and whitespace checks passed. Vite reports its existing large-chunk advisory.
 - Chromium with SwiftShader: inspected multiple animation phases for all five sources at overview and close zoom. The image above captures two seconds of actual scene poses at 12 samples per simulation second, with shadows disabled for the software-rendered capture.
 - Browser assertions passed for pause/resume, 4× speed, movement reassignment, depletion, target removal, blocked storage, hauling with cargo, save/load and independent villagers. The regular application booted without JavaScript errors.
+- After merging main through `398bd2d`, browser checks also confirmed visible berry batches, ground-plane pointer panning and cursor-centered wheel zoom while all five gathering activities remained active. The camera, berry and production/recruitment suites are included in the test count above.
 - A 200-active-worker browser check kept renderer geometry counts at 212 and textures at zero over 120 pose updates; three selected-worker markers remained present. This is a resource-lifetime check, not a hardware frame-rate benchmark.
 - Native Tauri build and desktop play-test were not run: this Linux environment lacks Cargo and WebKitGTK development libraries. CI remains main-only; no workflow was dispatched.
 

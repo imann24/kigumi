@@ -27,32 +27,40 @@ You begin with ten villagers, a hall, two homes, a storehouse, and a rice paddy.
 - Rice farmers stand inside their paddy while tending it, then walk out to deliver food or follow a new order. Up to three farmers reserve separate work spots.
 - Choose a building from the bottom bar, then click a valid grid footprint. **R** or the **Rotate 90°** button cycles through South, East, North and West; the placement hint shows the facing and footprint. **Escape** or right-click cancels. Repeated placements keep their direction; choosing another building or re-entering placement starts facing South. Selected villagers build, or two nearby auto-workers are assigned automatically.
 - Drag to place paths or bridge tiles. **Lift a path** removes paths; bridge removal checks that nobody is stranded. Buildings can be dismantled from their inspector for half their material cost.
-- Homes add six places, or eight after Timber joinery. **Welcome a villager** costs 35 food and takes twelve simulation seconds. The default global cap is **200**, adjustable from 10 to 500 in Settings; 500 is an experimental setting, not a performance target.
+- Homes add six places, or eight after Timber joinery. **Welcome a villager** costs 35 food and takes twelve simulation seconds. Queue up to 20 villagers (including the active welcome); each order pays once and reserves a housing/population place. The default global cap is **200**, adjustable from 10 to 500 in Settings; 500 is an experimental setting, not a performance target.
 - Auto-work finds new tasks after construction or resource depletion. Explicit movement ends in standing by. The inspector can toggle auto-work, stop a worker, or ask them to find work again.
 - Five technologies unlock workshops, tea houses and shrines, improve carrying capacity, cultivation and craft. Workshops need assigned workers to produce insight; the hall produces it slowly on its own.
 - Food consumption is gentle and never kills residents. Proximity creates acquaintances, friendships and occasional friction. Amenities lift nearby morale and strengthen warm encounters. Town management comes first.
 
-| Control                      | Action                |
-| ---------------------------- | --------------------- |
-| WASD / arrows                | Pan                   |
-| Q / E or middle-button drag  | Orbit                 |
-| R (while placing a building) | Rotate building 90°   |
-| Scroll                       | Zoom                  |
-| Home                         | Center camera         |
-| Space                        | Pause/resume          |
-| 1 / 2 / 4                    | Simulation speed      |
-| G                            | Toggle grid           |
-| B                            | Toggle build panel    |
-| H                            | Hide/show interface   |
-| I                            | Select idle villagers |
-| Ctrl / Cmd + S               | Manual save           |
-| ?                            | Field guide           |
+| Control                      | Action                    |
+| ---------------------------- | ------------------------- |
+| WASD / arrows                | Pan                       |
+| Q / E or middle-button drag  | Orbit                     |
+| R (while placing a building) | Rotate building 90°       |
+| Scroll                       | Zoom at cursor            |
+| Minimap click / drag         | Center / pan camera       |
+| Home                         | Center camera             |
+| Tap Space                    | Pause/resume              |
+| Space + left-button drag     | Pan by dragging the world |
+| 1 / 2 / 4                    | Simulation speed          |
+| G                            | Toggle grid               |
+| B                            | Toggle build panel        |
+| H                            | Hide/show interface       |
+| I                            | Select idle villagers     |
+| Ctrl / Cmd + S               | Manual save               |
+| ?                            | Field guide               |
+
+Hold **Space** for a hand cursor, then left-drag to pan (including in build mode). Release Space or the mouse to stop panning; a pan never toggles pause. Escape or switching away cancels the gesture. Space keeps its normal behavior in focused buttons and text fields. Scroll zooms toward or away from the ground under your cursor; at the map boundary, camera limits take priority. Click or drag the minimap to move the camera continuously.
 
 Panel headings collapse the build palette, map, progress, and selection details. Build, map, and progress panel preferences are remembered on this device. Selection details appear when you select an object; click the population count for the village overview. **H** hides the interface while keeping a restore button visible.
+
+Select the village hall to see the active villager welcome and its ordered waiting list, alongside independent village-wide research. Both active activities show a progress bar and percentage. Paused activities and blocked arrivals are labeled. If housing or population capacity falls, or hall access is blocked, paid orders wait safely; the next welcome starts only after the current villager arrives. Research supports one project at a time. Paddies and workshops produce continuously and do not have item queues.
 
 Menus and hidden windows pause simulation. The village does not simulate while closed. Days are a display clock; seasons and a day/night gameplay cycle are not implemented.
 
 ## Saves
+
+Active welcome progress and paid waiting orders are saved together. Older v1 saves with only an active welcome load with no waiting orders and keep their already-paid progress.
 
 Autosaves run every 30 seconds and on hide/close. The manual slot is separate. Saves live in the browser/WebView's local storage on this device; the browser development version and native app have separate storage. Export/import JSON copies from Settings to move a village between devices. Loading validates the format, version, entities, commands, bounds, and numerical state before rendering. Building orientation is saved with the village. Existing v1 saves still load; older game builds cannot read saves containing the new North/West orientations. Failed local writes show a warning. Back up important villages with an export; clearing application data removes local saves.
 
