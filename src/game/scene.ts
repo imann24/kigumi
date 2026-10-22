@@ -19,6 +19,7 @@ import {
 import { advanceWalk, interpolatePosition, type WalkPose } from "./walking";
 import { PlannedPaths } from "./planned-paths";
 import { ResourcePulses } from "./resource-pulses";
+import { MapGrid } from "./map-grid";
 export type Hit = { type: "villager" | "building" | "resource"; id: number };
 export class VillageScene {
   renderer: THREE.WebGLRenderer;
@@ -37,7 +38,7 @@ export class VillageScene {
   private ray = new THREE.Raycaster();
   private pointer = new THREE.Vector2();
   private plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-  private grid: THREE.GridHelper;
+  private grid = new MapGrid();
   private ghost = new THREE.Group();
   private world?: World;
   private pathSignature = "";
@@ -108,11 +109,6 @@ export class VillageScene {
       this.plannedPaths,
       this.ghost,
     );
-    this.grid = new THREE.GridHelper(40, 40, "#aeb49a", "#b5bea5");
-    this.grid.position.set(20, 0.035, 20);
-    (this.grid.material as THREE.Material).transparent = true;
-    (this.grid.material as THREE.Material).opacity = 0.36;
-    this.grid.visible = false;
     this.scene.add(this.grid);
     this.petals = new THREE.InstancedMesh(
       new THREE.PlaneGeometry(0.07, 0.12),
@@ -150,6 +146,7 @@ export class VillageScene {
   }
   setWorld(w: World) {
     this.world = w;
+    this.grid.setSize(w.size);
     this.selected.clear();
     this.selectedObject = null;
     this.plannedPaths.clearRoutes();
@@ -460,7 +457,6 @@ export class VillageScene {
       .map((v) => v.id);
   }
   preview(kind: BuildingKind | null, p?: Point, rotation = 0, valid = true) {
-    this.grid.visible = !!kind;
     if (!kind || !p) {
       this.ghost.visible = false;
       return;

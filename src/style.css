@@ -592,6 +592,10 @@ button {
   gap: 5px;
   align-items: center;
 }
+#grid[aria-pressed="true"] {
+  background: var(--green);
+  color: var(--paper);
+}
 kbd {
   font-family: inherit;
   font-size: 10px;
