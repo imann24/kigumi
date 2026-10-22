@@ -356,6 +356,21 @@ function renderProduction() {
   );
   setMarkup($("welcome-active"), parts.welcome);
   const queue = $("welcome-queue");
+  queue.onkeydown = (e) => {
+    // Let the focused list scroll without panning the camera or toggling pause.
+    if (
+      [
+        "ArrowUp",
+        "ArrowDown",
+        "PageUp",
+        "PageDown",
+        "Home",
+        "End",
+        "Space",
+      ].includes(e.code)
+    )
+      e.stopPropagation();
+  };
   const oldList = queue.querySelector("ol"),
     scroll = oldList?.scrollTop ?? 0;
   const focused = document.activeElement === oldList;
