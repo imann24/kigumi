@@ -17,6 +17,7 @@ import {
   villagerSelectionRing,
 } from "./art";
 import { advanceWalk, interpolatePosition, type WalkPose } from "./walking";
+import { panCamera } from "./camera-pan";
 import { PlannedPaths } from "./planned-paths";
 import { paddyHeight } from "./surfaces";
 import { ResourcePulses } from "./resource-pulses";
@@ -84,6 +85,37 @@ export class VillageScene {
     };
     this.controls.enablePan = false;
     this.controls.update();
+    // Let OrbitControls retain wheel/trackpad normalization and zoom limits.
+    // Translate on the ground plane after its zoom, rather than moving vertically.
+    let wheelAnchor: Point | null = null;
+    let wheelZoom = this.camera.zoom;
+    canvas.addEventListener(
+      "wheel",
+      (e) => {
+        wheelAnchor = null;
+        const rect = canvas.getBoundingClientRect();
+        if (
+          e.clientX < rect.left ||
+          e.clientX > rect.right ||
+          e.clientY < rect.top ||
+          e.clientY > rect.bottom
+        )
+          return;
+        wheelAnchor = this.pointerWorld(e.clientX, e.clientY);
+        wheelZoom = this.camera.zoom;
+      },
+      { capture: true, passive: true },
+    );
+    canvas.addEventListener("wheel", (e) => {
+      if (!wheelAnchor || wheelZoom === this.camera.zoom) return;
+      const after = this.pointerWorld(e.clientX, e.clientY);
+      if (after)
+        panCamera(this.camera, this.controls.target, {
+          x: wheelAnchor.x - after.x,
+          z: wheelAnchor.z - after.z,
+        });
+      wheelAnchor = null;
+    });
     this.scene.add(new THREE.HemisphereLight("#fff6d9", "#7a8e78", 2.1));
     const sun = new THREE.DirectionalLight("#ffe7bb", 3.5);
     sun.position.set(-16, 40, 16);
@@ -413,14 +445,27 @@ export class VillageScene {
   }
   pointerWorld(clientX: number, clientY: number): Point | null {
     const rect = this.canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height || !Number.isFinite(clientX + clientY))
+      return null;
     this.pointer.set(
       ((clientX - rect.left) / rect.width) * 2 - 1,
       (-(clientY - rect.top) / rect.height) * 2 + 1,
     );
+    this.camera.updateMatrixWorld();
     this.ray.setFromCamera(this.pointer, this.camera);
     const p = new THREE.Vector3();
     if (!this.ray.ray.intersectPlane(this.plane, p)) return null;
     return { x: p.x, z: p.z };
+  }
+  panPointer(from: { x: number; y: number }, to: { x: number; y: number }) {
+    // Ground-plane intersections account for zoom, tilt, and orbit orientation.
+    const a = this.pointerWorld(from.x, from.y);
+    const b = this.pointerWorld(to.x, to.y);
+    if (a && b)
+      panCamera(this.camera, this.controls.target, {
+        x: a.x - b.x,
+        z: a.z - b.z,
+      });
   }
   hit(clientX: number, clientY: number): Hit | null {
     this.pointerWorld(clientX, clientY);

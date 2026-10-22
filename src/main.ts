@@ -25,6 +25,8 @@ import {
 import { LocalSession } from "./simulation/session";
 import type { Command, Order, Point, World } from "./simulation/types";
 import { VillageScene, type Hit } from "./game/scene";
+import { installMinimapPan } from "./game/minimap-pan";
+import { installSpacePan } from "./game/camera-pan";
 import { thumbnails } from "./game/thumbnails";
 import { icon } from "./icons";
 const $ = <T extends HTMLElement = HTMLElement>(id: string) =>
@@ -80,13 +82,13 @@ app.innerHTML = `
     <button class="village-stat" id="population" title="Village overview">${icon("people", 21)}<span><strong id="pop">10 / 20</strong><small>Villagers</small></span></button>
     <button class="village-stat" id="community" title="Community and connections">${icon("heart", 20)}<span><strong id="morale">Content</strong><small id="morale-value">75% belonging</small></span></button>
   </header>
-  <div class="top-actions"><span class="season">${icon("sun", 17)} <span id="day">Day 1</span></span><div class="time-controls"><button id="pause" aria-label="Pause" title="Pause / resume [Space]">${icon("pause", 16)}</button><button data-speed="1" class="active">1×</button><button data-speed="2">2×</button><button data-speed="4">4×</button></div><button class="square" id="save" aria-label="Save game" title="Save game [Ctrl / Cmd + S]">${icon("save")}</button><button class="square" id="settings" aria-label="Settings" title="Settings and saves">${icon("gear")}</button></div>
+  <div class="top-actions"><span class="season">${icon("sun", 17)} <span id="day">Day 1</span></span><div class="time-controls"><button id="pause" aria-label="Pause" title="Pause / resume [tap Space]">${icon("pause", 16)}</button><button data-speed="1" class="active">1×</button><button data-speed="2">2×</button><button data-speed="4">4×</button></div><button class="square" id="save" aria-label="Save game" title="Save game [Ctrl / Cmd + S]">${icon("save")}</button><button class="square" id="settings" aria-label="Settings" title="Settings and saves">${icon("gear")}</button></div>
   <details class="journal chrome-panel" data-panel="journal"><summary>${icon("leaf", 16)} Progress & research</summary><div class="panel-content"><div id="milestones"></div><button id="research" class="text-button">Knowledge tree ${icon("arrow", 15)}</button></div></details>
   <details id="inspector-panel" class="inspector-panel chrome-panel" hidden open><summary>Selection</summary><aside id="inspector" class="inspector"></aside></details>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <div id="build-hint" class="build-hint" hidden><div id="build-description"></div><output id="build-facing" aria-live="polite"></output><button id="rotate-building" title="Rotate building 90° [R]" aria-label="Rotate building 90 degrees">↶ Rotate 90° <kbd>R</kbd></button><span><kbd>Esc</kbd> Cancel</span></div>
   <div id="selection-box" class="selection-box" hidden></div>
-  <details class="map-panel chrome-panel" data-panel="map" open><summary>${icon("flag", 13)} Map</summary><div class="panel-content"><button id="home" class="map-center" title="Center on the village [Home]">Center village ↗</button><canvas id="minimap" width="160" height="128" aria-label="Minimap; click to move camera"></canvas><div class="map-footer"><span class="live-dot"></span><span id="save-status">Saved on this device</span></div></div></details>
+  <details class="map-panel chrome-panel" data-panel="map" open><summary>${icon("flag", 13)} Map</summary><div class="panel-content"><button id="home" class="map-center" title="Center on the village [Home]">Center village ↗</button><canvas id="minimap" width="160" height="128" aria-label="Minimap; click or drag to move camera"></canvas><div class="map-footer"><span class="live-dot"></span><span id="save-status">Saved on this device</span></div></div></details>
   <details id="build-panel" class="build-panel chrome-panel" data-panel="build" open><summary>${icon("house", 17)} Build <kbd>B</kbd></summary><div class="build-body"><div class="build-heading"><div class="build-tabs"><button class="active" data-category="all">Homes & community</button><button data-category="production">Production</button><button data-category="paths">Paths & crossings</button></div><button id="grid" title="Show grid [G]">${icon("plus", 14)} Grid <kbd>G</kbd></button></div><div id="build-cards" class="build-cards"></div></div></details>
   <footer><button id="help" title="Controls and field guide [?]">${icon("help", 15)} Help <kbd>?</kbd></button></footer>
   <button id="chrome-toggle" class="square" aria-label="Hide interface" aria-pressed="false" title="Hide interface [H]">${icon("panels", 16)}</button>
@@ -481,8 +483,22 @@ function drawMap() {
   }
   ctx.strokeStyle = "#fff9dd";
   ctx.lineWidth = 1;
-  const t = scene.controls.target;
-  ctx.strokeRect(t.x * sx - 22, t.z * sz - 16, 44, 32);
+  const rect = scene.canvas.getBoundingClientRect();
+  const corners = [
+    [rect.left, rect.top],
+    [rect.right, rect.top],
+    [rect.right, rect.bottom],
+    [rect.left, rect.bottom],
+  ].map(([x, y]) => scene.pointerWorld(x, y));
+  if (corners.every((p) => p !== null)) {
+    ctx.beginPath();
+    corners.forEach((p, i) => {
+      if (i === 0) ctx.moveTo(p.x * sx, p.z * sz);
+      else ctx.lineTo(p.x * sx, p.z * sz);
+    });
+    ctx.closePath();
+    ctx.stroke();
+  }
 }
 function save(manual = false) {
   try {
@@ -569,7 +585,7 @@ function openModal(type: string) {
     modalShell(
       "A village, at your own pace.",
       "There is no finish line. Find a rhythm, make connections, and build somewhere worth belonging.",
-      `<div class="guide-grid"><article>${icon("people", 27)}<h3>Give a little direction</h3><p>Click a villager or drag a selection box. Shift adds to your selection. Right-click resources to gather, unfinished buildings to construct, paddies or workshops to assign work, and ground to move.</p></article><article>${icon("road", 27)}<h3>Make every journey count</h3><p>Workers carry resources to the nearest reachable hall or storehouse. Paths make walking 45% faster. Keep routes open around buildings. Drag to lay paths; build bridges tile by tile across water. Use Lift a path to rearrange routes.</p></article><article>${icon("house", 27)}<h3>Grow thoughtfully</h3><p>Select a building below, then place it on the grid. R or Rotate 90° cycles through four directions; Escape cancels. A new building choice starts facing South. Selected villagers build it, or two nearby auto-workers help. Homes increase capacity. Welcome villagers for 35 food.</p></article><article>${icon("heart", 27)}<h3>Leave room for togetherness</h3><p>Villagers meet as their paths cross. Shared traditions unlock tea houses and shrines, improving nearby morale and bonds. Food shortages gently reduce morale and work speed; nobody dies.</p></article></div><div class="shortcut-list"><span><kbd>Space</kbd> Pause</span><span><kbd>WASD / arrows</kbd> Pan</span><span><kbd>Q / E</kbd> Rotate</span><span><kbd>Middle drag</kbd> Orbit</span><span><kbd>Scroll</kbd> Zoom</span><span><kbd>B</kbd> Build panel</span><span><kbd>H</kbd> Hide interface</span><span><kbd>G</kbd> Grid</span><span><kbd>I</kbd> Select idle</span><span><kbd>Home</kbd> Center</span><span><kbd>1 / 2 / 4</kbd> Speed</span><span><kbd>Ctrl / Cmd + S</kbd> Save</span></div><p class="small-note">Auto-work finds a new job when a resource is exhausted or construction finishes. Explicit move orders end in standing by. Your village pauses while a menu is open or the game is closed.</p>`,
+      `<div class="guide-grid"><article>${icon("people", 27)}<h3>Give a little direction</h3><p>Click a villager or drag a selection box. Shift adds to your selection. Right-click resources to gather, unfinished buildings to construct, paddies or workshops to assign work, and ground to move.</p></article><article>${icon("road", 27)}<h3>Make every journey count</h3><p>Workers carry resources to the nearest reachable hall or storehouse. Paths make walking 45% faster. Keep routes open around buildings. Drag to lay paths; build bridges tile by tile across water. Use Lift a path to rearrange routes.</p></article><article>${icon("house", 27)}<h3>Grow thoughtfully</h3><p>Select a building below, then place it on the grid. R or Rotate 90° cycles through four directions; Escape cancels. A new building choice starts facing South. Selected villagers build it, or two nearby auto-workers help. Homes increase capacity. Welcome villagers for 35 food.</p></article><article>${icon("heart", 27)}<h3>Leave room for togetherness</h3><p>Villagers meet as their paths cross. Shared traditions unlock tea houses and shrines, improving nearby morale and bonds. Food shortages gently reduce morale and work speed; nobody dies.</p></article></div><div class="shortcut-list"><span><kbd>Tap Space</kbd> Pause</span><span><kbd>Space + left drag</kbd> Pan</span><span><kbd>WASD / arrows</kbd> Pan</span><span><kbd>Q / E</kbd> Rotate</span><span><kbd>Middle drag</kbd> Orbit</span><span><kbd>Scroll</kbd> Zoom at cursor</span><span><kbd>B</kbd> Build panel</span><span><kbd>H</kbd> Hide interface</span><span><kbd>G</kbd> Grid</span><span><kbd>I</kbd> Select idle</span><span><kbd>Minimap drag</kbd> Pan</span><span><kbd>Home</kbd> Center</span><span><kbd>1 / 2 / 4</kbd> Speed</span><span><kbd>Ctrl / Cmd + S</kbd> Save</span></div><p class="small-note">Auto-work finds a new job when a resource is exhausted or construction finishes. Explicit move orders end in standing by. Your village pauses while a menu is open or the game is closed.</p>`,
     );
   } else if (type === "settings") {
     modalShell(
@@ -638,6 +654,19 @@ function openModal(type: string) {
 }
 // Interaction stays on the canvas; UI never leaks placement clicks into the world.
 const canvas = $<HTMLCanvasElement>("world");
+const cameraPan = installSpacePan(scene, {
+  enabled: () => !modal,
+  tap: () => setSpeed(speed ? 0 : 1),
+  start: () => {
+    drag = null;
+    $("selection-box").hidden = true;
+  },
+  move: (from, to) => scene.panPointer(from, to),
+  hover: (x, y) => {
+    pointer = scene.pointerWorld(x, y);
+    updatePreview();
+  },
+});
 canvas.addEventListener("pointerdown", (e) => {
   if (e.button !== 0 || e.ctrlKey) return;
   pointer = scene.pointerWorld(e.clientX, e.clientY);
@@ -651,6 +680,7 @@ canvas.addEventListener("pointerdown", (e) => {
   canvas.setPointerCapture(e.pointerId);
 });
 canvas.addEventListener("pointermove", (e) => {
+  if (e.defaultPrevented) return;
   pointer = scene.pointerWorld(e.clientX, e.clientY);
   updatePreview();
   if (!drag) return;
@@ -711,7 +741,7 @@ canvas.addEventListener("contextmenu", (e) => {
   }
 });
 window.addEventListener("pointerup", (e) => {
-  if (e.button !== 0 || e.ctrlKey || !drag) return;
+  if (e.defaultPrevented || e.button !== 0 || e.ctrlKey || !drag) return;
   const start = drag;
   drag = null;
   $("selection-box").hidden = true;
@@ -757,14 +787,24 @@ $("grid").onclick = () => {
   scene.showGrid(grid || !!build);
   $("grid").classList.toggle("active", grid);
 };
-$("minimap").onclick = (e) => {
-  const r = $("minimap").getBoundingClientRect();
-  scene.focus({
-    x: ((e.clientX - r.left) / r.width) * session.world.size,
-    z: ((e.clientY - r.top) / r.height) * session.world.size,
-  });
+installMinimapPan($<HTMLCanvasElement>("minimap"), {
+  size: () => session.world.size,
+  start: () => {
+    cameraPan.cancel();
+    drag = null;
+    $("selection-box").hidden = true;
+  },
+  move: (p) => {
+    scene.focus(p);
+    drawMap();
+  },
+});
+canvas.addEventListener("wheel", (e) => {
+  pointer = scene.pointerWorld(e.clientX, e.clientY);
+  updatePreview();
   drawMap();
-};
+});
+scene.controls.addEventListener("change", drawMap);
 $("modal-layer").onclick = (e) => {
   if (e.target === $("modal-layer")) closeModal();
 };
@@ -827,14 +867,9 @@ window.addEventListener("keydown", (e) => {
     return;
   }
   if (e.target instanceof HTMLInputElement || modal) return;
-  if (
-    ["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(
-      e.code,
-    )
-  )
+  if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.code))
     e.preventDefault();
   if (e.repeat) return;
-  if (e.code === "Space") setSpeed(speed ? 0 : 1);
   if (e.code === "KeyH" && !e.ctrlKey && !e.metaKey && !e.altKey)
     toggleChrome();
   if (e.code === "KeyB" && !e.ctrlKey && !e.metaKey && !e.altKey) {
