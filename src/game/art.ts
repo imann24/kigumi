@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import type { BuildingKind } from "../simulation/catalog";
 const materials = new Map<string, THREE.MeshStandardMaterial>();
 export function material(color: string) {
@@ -264,6 +265,77 @@ export function treeModel(variant: number) {
   }
   return g;
 }
+/** Fruit sits on the canopy surface, with clusters visible from every orbit angle. */
+export function berryBushModel() {
+  const g = new THREE.Group();
+  stone(g, "#719269", 0, 0.35, 0, 0.49, 0.47, 0.48);
+  const fruit = new THREE.IcosahedronGeometry(1, 0);
+  const batches: THREE.BufferGeometry[][] = [[], []];
+  const berry = (
+    x: number,
+    y: number,
+    z: number,
+    size: number,
+    tone: number,
+  ) => {
+    batches[tone].push(
+      fruit.clone().scale(size, size, size).translate(x, y, z),
+    );
+  };
+  const shoulders = [
+    [0.36, 0.66],
+    [0.4, 0.59],
+    [0.32, 0.7],
+    [0.38, 0.63],
+    [0.28, 0.72],
+  ];
+  for (const [i, [radius, height]] of shoulders.entries()) {
+    const angle = (i * Math.PI * 2) / shoulders.length + 0.2;
+    const x = Math.sin(angle),
+      z = Math.cos(angle);
+    // Two fruit on each shoulder and one hanging just below, outside the leaves.
+    for (const side of [-1, 1])
+      berry(
+        x * radius + z * side * 0.075,
+        height + side * 0.015,
+        z * radius - x * side * 0.075,
+        side < 0 ? 0.09 : 0.1,
+        i % 2,
+      );
+    berry(
+      x * (radius + 0.05),
+      height - 0.12,
+      z * (radius + 0.05),
+      0.095,
+      (i + 1) % 2,
+    );
+  }
+  // The crown remains readable at the steepest allowed camera elevation.
+  for (let i = 0; i < 3; i++) {
+    const angle = (i * Math.PI * 2) / 3;
+    berry(Math.sin(angle) * 0.15, 0.79, Math.cos(angle) * 0.15, 0.095, i % 2);
+  }
+  fruit.dispose();
+  for (const [i, color] of ["#b83e57", "#d75c6b"].entries()) {
+    const mesh = new THREE.Mesh(
+      mergeGeometries(batches[i]),
+      new THREE.MeshStandardMaterial({
+        color,
+        roughness: 0.78,
+        flatShading: true,
+      }),
+    );
+    mesh.name = "berries";
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    // Decorative fruit must not enlarge the existing foliage picking target.
+    mesh.raycast = () => {};
+    g.add(mesh);
+    for (const geometry of batches[i]) geometry.dispose();
+  }
+  return g;
+}
+
 export function villagerModel(index: number) {
   const g = new THREE.Group(),
     colors = ["#b66c51", "#748f91", "#ccad6b", "#6e8572", "#a28a97"];
