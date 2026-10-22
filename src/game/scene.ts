@@ -10,6 +10,7 @@ import {
   material,
   selectionFootprint,
   selectionRing,
+  setBuildingProgress,
   stone,
   treeModel,
   villagerModel,
@@ -26,6 +27,7 @@ import {
   type GatheringRig,
 } from "./gathering";
 import { PlannedPaths } from "./planned-paths";
+import { ResourcePulses } from "./resource-pulses";
 export type Hit = { type: "villager" | "building" | "resource"; id: number };
 export class VillageScene {
   renderer: THREE.WebGLRenderer;
@@ -37,6 +39,7 @@ export class VillageScene {
   private paths = new THREE.Group();
   private markers = new THREE.Group();
   private plannedPaths = new PlannedPaths();
+  private resourcePulses = new ResourcePulses();
   private previousPositions = new Map<number, Point>();
   private walkPoses = new Map<number, WalkPose>();
   private gatherPoses = new Map<number, GatherPose>();
@@ -161,6 +164,7 @@ export class VillageScene {
     this.selected.clear();
     this.selectedObject = null;
     this.plannedPaths.clearRoutes();
+    this.resourcePulses.clear();
     this.models.clear();
     this.previousPositions.clear();
     this.walkPoses.clear();
@@ -311,6 +315,16 @@ export class VillageScene {
     for (const v of w.villagers)
       this.previousPositions.set(v.id, { x: v.x, z: v.z });
   }
+  /** Called once after a successful player gather command, regardless of party size. */
+  flashResource(id: number) {
+    if (
+      !this.world?.villagers.some((v) => this.selected.has(v.id)) ||
+      !this.world.nodes.some((n) => n.id === id && n.amount > 0)
+    )
+      return;
+    const model = this.models.get(`resource:${id}`);
+    if (model) this.resourcePulses.start(model, performance.now());
+  }
   sync(w: World) {
     this.world = w;
     const alive = new Set<string>();
@@ -361,7 +375,7 @@ export class VillageScene {
         this.entities.add(g);
         this.models.set(key, g);
       }
-      g.scale.y = 0.15 + b.progress * 0.85;
+      setBuildingProgress(g, b.progress);
     }
     for (const v of w.villagers) {
       const key = `villager:${v.id}`;
@@ -381,6 +395,7 @@ export class VillageScene {
     }
     for (const [key, g] of this.models)
       if (!alive.has(key)) {
+        this.resourcePulses.remove(g);
         this.entities.remove(g);
         disposeGroup(g);
         this.models.delete(key);
@@ -431,10 +446,17 @@ export class VillageScene {
     const hits = this.ray.intersectObjects(this.entities.children, true);
     for (const hit of hits) {
       let obj: THREE.Object3D | null = hit.object;
+      let target: Hit | null = null;
       while (obj && obj !== this.entities) {
-        if (obj.userData.type) return obj.userData as Hit;
+        // Raycaster also intersects invisible objects, including unfinished roofs.
+        if (!obj.visible) {
+          target = null;
+          break;
+        }
+        if (obj.userData.type) target = obj.userData as Hit;
         obj = obj.parent;
       }
+      if (target) return target;
     }
     return null;
   }
@@ -508,6 +530,7 @@ export class VillageScene {
   frame(now: number, alpha = 1, simulationDelta = 0) {
     const dt = Math.min(0.05, (now - this.lastTime) / 1000 || 0.016);
     this.lastTime = now;
+    this.resourcePulses.update(now);
     const right = new THREE.Vector3().setFromMatrixColumn(
       this.camera.matrix,
       0,
