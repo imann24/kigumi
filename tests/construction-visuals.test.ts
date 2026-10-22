@@ -6,6 +6,7 @@ import {
   setBuildingProgress,
 } from "../src/game/art";
 import { VillageScene } from "../src/game/scene";
+import { ResourcePulses } from "../src/game/resource-pulses";
 import { PlannedPaths } from "../src/game/planned-paths";
 import { BUILDINGS } from "../src/simulation/catalog";
 import { createWorld } from "../src/simulation/engine";
@@ -43,6 +44,8 @@ function sceneFixture() {
       paths: new THREE.Group(),
       grid: new THREE.Group(),
       plannedPaths: new PlannedPaths(),
+      resourcePulses: new ResourcePulses(),
+      cursor: { clear: vi.fn() },
       models: new Map(),
       previousPositions: new Map(),
       walkPoses: new Map(),

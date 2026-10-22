@@ -150,6 +150,7 @@ export class VillageScene {
     this.cursor.dispose();
     this.listeners.abort();
     this.controls.dispose();
+    this.resourcePulses.clear();
     disposeGroup(this.scene);
     this.renderer.dispose();
   }
