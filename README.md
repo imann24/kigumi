@@ -4,15 +4,15 @@ A peaceful, Age of Empires-inspired village builder in a small Japanese countrys
 
 ## Play and develop
 
-Requires Node.js 22.12+ (Node 24 recommended). The desktop build also needs Rust and the platform's [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/).
+Requires Node.js 22.12+ (Node 24 recommended) and pnpm 11.9.0 (pinned in `package.json`). The desktop build also needs Rust and the platform's [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/).
 
 ```sh
-npm ci
-npm run dev          # browser development at http://127.0.0.1:1420
-npm run desktop      # native development window
-npm test             # deterministic simulation and save tests
-npm run build        # TypeScript + production frontend
-npm run desktop:build
+pnpm install --frozen-lockfile
+pnpm run dev          # browser development at http://127.0.0.1:1420
+pnpm run desktop      # native development window
+pnpm test             # deterministic simulation and save tests
+pnpm run build        # TypeScript + production frontend
+pnpm run desktop:build
 ```
 
 Dependencies must be installed online once; the built app runs fully offline. Installers/bundles are written under `src-tauri/target/release/bundle/`. On this development machine, a debug macOS app is also available at `src-tauri/target/debug/bundle/macos/Kigumi.app`. macOS has been built and manually play-tested. Windows and Linux share the Tauri configuration and have CI build jobs, but have not been run locally.
@@ -40,9 +40,13 @@ You begin with ten villagers, a hall, two homes, a storehouse, and a rice paddy.
 | Space                       | Pause/resume          |
 | 1 / 2 / 4                   | Simulation speed      |
 | G                           | Toggle grid           |
+| B                           | Toggle build panel    |
+| H                           | Hide/show interface   |
 | I                           | Select idle villagers |
 | Ctrl / Cmd + S              | Manual save           |
 | ?                           | Field guide           |
+
+Panel headings collapse the build palette, map, progress, and selection details. Build, map, and progress panel preferences are remembered on this device. Selection details appear when you select an object; click the population count for the village overview. **H** hides the interface while keeping a restore button visible.
 
 Menus and hidden windows pause simulation. The village does not simulate while closed. Days are a display clock; seasons and a day/night gameplay cycle are not implemented.
 

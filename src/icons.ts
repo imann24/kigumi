@@ -22,6 +22,8 @@ export const icons: Record<string, string> = {
   pause: '<path d="M8 4v16M16 4v16"/>',
   play: '<path d="m7 3 14 9-14 9Z"/>',
   close: '<path d="m6 6 12 12M6 18 18 6"/>',
+  panels:
+    '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 8h18M8 8v13"/>',
   gear: '<path d="m9 3-1 3-3 1-2 3 2 2-1 4 3 2 3-1 2 4 4-1 1-3 4-1v-4l-3-2V6l-4-1-2-2Z"/><circle cx="12" cy="12" r="3"/>',
   save: '<path d="M4 3h13l4 4v14H3V3Zm3 0v7h10V3M7 21v-7h10v7"/>',
   arrow: '<path d="M4 12h16m-6-6 6 6-6 6"/>',

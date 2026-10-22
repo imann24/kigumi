@@ -76,23 +76,65 @@ app.innerHTML = `
   <canvas id="world" aria-label="Komorebi village. Select villagers with left click and give orders with right click."></canvas>
   <div class="vignette"></div>
   <header class="topbar">
-    <div class="brand"><span class="brand-mark">${icon("hall", 30)}</span><div>KIGUMI<small>A VILLAGE, TOGETHER</small></div></div>
     <div class="resources">${(["wood", "food", "stone", "insight"] as Resource[]).map((r) => `<div class="resource ${r}" title="${r === "insight" ? "Produced by the village hall and assigned workshop workers" : r === "food" ? "Gather berries or assign farmers to paddies. Villagers consume a little food over time." : `Gather ${r} and carry it to a hall or storehouse`}"><span class="resource-icon">${icon(r, 23)}</span><div><strong id="stock-${r}">0</strong><small>${RESOURCE_LABEL[r]}</small></div></div>`).join("")}</div>
     <button class="village-stat" id="population" title="Village overview">${icon("people", 21)}<span><strong id="pop">10 / 20</strong><small>Villagers</small></span></button>
     <button class="village-stat" id="community" title="Community and connections">${icon("heart", 20)}<span><strong id="morale">Content</strong><small id="morale-value">75% belonging</small></span></button>
   </header>
-  <div class="place-title"><span class="eyebrow">FREEFORM · A NEW BEGINNING</span><h1>Komorebi<span>木漏れ日</span></h1><p>A little room to grow.</p></div>
-  <div class="top-actions"><span class="season">${icon("sun", 17)} <span id="day">Day 1</span><span class="dot">·</span> Early spring</span><div class="time-controls"><button id="pause" aria-label="Pause" title="Pause / resume [Space]">${icon("pause", 16)}</button><button data-speed="1" class="active">1×</button><button data-speed="2">2×</button><button data-speed="4">4×</button></div><button class="square" id="save" aria-label="Save game" title="Save game [Ctrl / Cmd + S]">${icon("save")}</button><button class="square" id="settings" aria-label="Settings" title="Settings and saves">${icon("gear")}</button></div>
-  <aside class="journal"><div class="section-label">${icon("leaf", 16)} ROOTS & POSSIBILITIES</div><h2>Make yourself at home.</h2><p>A village grows one thoughtful<br>decision at a time.</p><div id="milestones"></div><button id="research" class="text-button">Explore the knowledge tree ${icon("arrow", 15)}</button></aside>
-  <aside id="inspector" class="inspector"></aside>
+  <div class="top-actions"><span class="season">${icon("sun", 17)} <span id="day">Day 1</span></span><div class="time-controls"><button id="pause" aria-label="Pause" title="Pause / resume [Space]">${icon("pause", 16)}</button><button data-speed="1" class="active">1×</button><button data-speed="2">2×</button><button data-speed="4">4×</button></div><button class="square" id="save" aria-label="Save game" title="Save game [Ctrl / Cmd + S]">${icon("save")}</button><button class="square" id="settings" aria-label="Settings" title="Settings and saves">${icon("gear")}</button></div>
+  <details class="journal chrome-panel" data-panel="journal"><summary>${icon("leaf", 16)} Progress & research</summary><div class="panel-content"><div id="milestones"></div><button id="research" class="text-button">Knowledge tree ${icon("arrow", 15)}</button></div></details>
+  <details id="inspector-panel" class="inspector-panel chrome-panel" hidden open><summary>Selection</summary><aside id="inspector" class="inspector"></aside></details>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <div id="build-hint" class="build-hint" hidden></div>
   <div id="selection-box" class="selection-box" hidden></div>
-  <div class="map-panel"><div class="map-heading"><span>${icon("flag", 13)} KOMOREBI VALLEY</span><button id="home" title="Center on the village [Home]">↗</button></div><canvas id="minimap" width="160" height="128" aria-label="Minimap; click to move camera"></canvas><div class="map-footer"><span class="live-dot"></span><span id="save-status">All yours. Fully offline.</span></div></div>
-  <section class="build-panel"><div class="build-heading"><div class="build-tabs"><button class="active" data-category="all">${icon("house", 17)} Build your village</button><button data-category="production">Production</button><button data-category="paths">Paths & crossings</button></div><button id="grid" title="Show grid [G]">${icon("plus", 14)} Grid <kbd>G</kbd></button></div><div id="build-cards" class="build-cards"></div></section>
-  <footer><span><kbd>LMB</kbd> Select <span>·</span> <kbd>RMB</kbd> Give order <span>·</span> <kbd>W A S D</kbd> Pan <span>·</span> <kbd>Q E</kbd> Rotate <span>·</span> Scroll to zoom</span><button id="help">${icon("help", 15)} Field guide <kbd>?</kbd></button></footer>
+  <details class="map-panel chrome-panel" data-panel="map" open><summary>${icon("flag", 13)} Map</summary><div class="panel-content"><button id="home" class="map-center" title="Center on the village [Home]">Center village ↗</button><canvas id="minimap" width="160" height="128" aria-label="Minimap; click to move camera"></canvas><div class="map-footer"><span class="live-dot"></span><span id="save-status">Saved on this device</span></div></div></details>
+  <details id="build-panel" class="build-panel chrome-panel" data-panel="build" open><summary>${icon("house", 17)} Build <kbd>B</kbd></summary><div class="build-body"><div class="build-heading"><div class="build-tabs"><button class="active" data-category="all">Homes & community</button><button data-category="production">Production</button><button data-category="paths">Paths & crossings</button></div><button id="grid" title="Show grid [G]">${icon("plus", 14)} Grid <kbd>G</kbd></button></div><div id="build-cards" class="build-cards"></div></div></details>
+  <footer><button id="help" title="Controls and field guide [?]">${icon("help", 15)} Help <kbd>?</kbd></button></footer>
+  <button id="chrome-toggle" class="square" aria-label="Hide interface" aria-pressed="false" title="Hide interface [H]">${icon("panels", 16)}</button>
   <div id="modal-layer" class="modal-layer" hidden></div><input id="import-file" type="file" accept=".json" hidden/>
 `;
+// Panel preferences belong to this device, independently of village saves.
+const panels = Array.from(
+  document.querySelectorAll<HTMLDetailsElement>("[data-panel]"),
+);
+try {
+  const saved = JSON.parse(localStorage.getItem("kigumi.panels") ?? "{}");
+  for (const panel of panels) {
+    const value = saved?.[panel.dataset.panel!];
+    if (typeof value === "boolean") panel.open = value;
+  }
+} catch {
+  /* Keep defaults when storage is unavailable. */
+}
+for (const panel of panels)
+  panel.addEventListener("toggle", () => {
+    try {
+      localStorage.setItem(
+        "kigumi.panels",
+        JSON.stringify(
+          Object.fromEntries(panels.map((p) => [p.dataset.panel, p.open])),
+        ),
+      );
+    } catch {
+      /* Collapsing panels still works without storage. */
+    }
+  });
+function toggleChrome() {
+  const hidden = app.classList.toggle("chrome-hidden");
+  const button = $("chrome-toggle");
+  button.setAttribute("aria-pressed", String(hidden));
+  button.setAttribute(
+    "aria-label",
+    hidden ? "Show interface" : "Hide interface",
+  );
+  button.title = `${hidden ? "Show" : "Hide"} interface [H]`;
+  button.innerHTML = icon("panels", 16);
+  if (hidden) {
+    build = null;
+    erasing = false;
+    renderCards();
+    updatePreview();
+  }
+}
 let scene: VillageScene;
 let thumbs: Record<BuildingKind, string>;
 try {
@@ -177,6 +219,10 @@ function select(ids: number[], hit: Hit | null = null) {
   selected = ids;
   focus = hit;
   scene.select(selected, hit);
+  const panel = $<HTMLDetailsElement>("inspector-panel");
+  panel.hidden = !ids.length && !hit;
+  panel.open = true;
+  panel.querySelector("summary")!.textContent = "Selection";
   renderInspector();
 }
 function renderInspector() {
@@ -274,6 +320,8 @@ function renderInspector() {
     );
     $("welcome").onclick = () => dispatch({ type: "recruit" });
   }
+  $("inspector-panel").querySelector("summary")!.textContent =
+    el.querySelector("h2")?.textContent ?? "Selection";
   if ($("clear-selection")) $("clear-selection").onclick = () => select([]);
 }
 function renderUi() {
@@ -431,6 +479,7 @@ function replaceWorld(w: World) {
   erasing = false;
   scene.setWorld(w);
   scene.select([]);
+  $("inspector-panel").hidden = true;
   accumulator = 0;
   lastFrame = performance.now();
   closeModal();
@@ -448,7 +497,7 @@ function closeModal() {
 function modalShell(title: string, subtitle: string, body: string) {
   $("modal-layer").hidden = false;
   $("modal-layer").innerHTML =
-    `<section class="modal" role="dialog" aria-modal="true" aria-label="${title}"><button id="close-modal" class="modal-close" aria-label="Close">${icon("close")}</button><span class="eyebrow">KIGUMI · FIELD NOTES</span><h2>${title}</h2><p class="modal-subtitle">${subtitle}</p>${body}</section>`;
+    `<section class="modal" role="dialog" aria-modal="true" aria-label="${title}"><button id="close-modal" class="modal-close" aria-label="Close">${icon("close")}</button><span class="eyebrow">FIELD NOTES</span><h2>${title}</h2><p class="modal-subtitle">${subtitle}</p>${body}</section>`;
   $("close-modal").onclick = closeModal;
   $("close-modal").focus();
 }
@@ -490,7 +539,7 @@ function openModal(type: string) {
     modalShell(
       "A village, at your own pace.",
       "There is no finish line. Find a rhythm, make connections, and build somewhere worth belonging.",
-      `<div class="guide-grid"><article>${icon("people", 27)}<h3>Give a little direction</h3><p>Click a villager or drag a selection box. Shift adds to your selection. Right-click resources to gather, unfinished buildings to construct, paddies or workshops to assign work, and ground to move.</p></article><article>${icon("road", 27)}<h3>Make every journey count</h3><p>Workers carry resources to the nearest reachable hall or storehouse. Paths make walking 45% faster. Keep routes open around buildings. Drag to lay paths; build bridges tile by tile across water. Use Lift a path to rearrange routes.</p></article><article>${icon("house", 27)}<h3>Grow thoughtfully</h3><p>Select a building below, then place it on the grid. R rotates; Escape cancels. Selected villagers build it, or two nearby auto-workers help. Homes increase capacity. Welcome villagers for 35 food.</p></article><article>${icon("heart", 27)}<h3>Leave room for togetherness</h3><p>Villagers meet as their paths cross. Shared traditions unlock tea houses and shrines, improving nearby morale and bonds. Food shortages gently reduce morale and work speed; nobody dies.</p></article></div><div class="shortcut-list"><span><kbd>Space</kbd> Pause</span><span><kbd>WASD / arrows</kbd> Pan</span><span><kbd>Q / E</kbd> Rotate</span><span><kbd>Middle drag</kbd> Orbit</span><span><kbd>Scroll</kbd> Zoom</span><span><kbd>G</kbd> Grid</span><span><kbd>I</kbd> Select idle</span><span><kbd>Home</kbd> Center</span><span><kbd>1 / 2 / 4</kbd> Speed</span><span><kbd>Ctrl / Cmd + S</kbd> Save</span></div><p class="small-note">Auto-work finds a new job when a resource is exhausted or construction finishes. Explicit move orders end in standing by. Your village pauses while a menu is open or the game is closed.</p>`,
+      `<div class="guide-grid"><article>${icon("people", 27)}<h3>Give a little direction</h3><p>Click a villager or drag a selection box. Shift adds to your selection. Right-click resources to gather, unfinished buildings to construct, paddies or workshops to assign work, and ground to move.</p></article><article>${icon("road", 27)}<h3>Make every journey count</h3><p>Workers carry resources to the nearest reachable hall or storehouse. Paths make walking 45% faster. Keep routes open around buildings. Drag to lay paths; build bridges tile by tile across water. Use Lift a path to rearrange routes.</p></article><article>${icon("house", 27)}<h3>Grow thoughtfully</h3><p>Select a building below, then place it on the grid. R rotates; Escape cancels. Selected villagers build it, or two nearby auto-workers help. Homes increase capacity. Welcome villagers for 35 food.</p></article><article>${icon("heart", 27)}<h3>Leave room for togetherness</h3><p>Villagers meet as their paths cross. Shared traditions unlock tea houses and shrines, improving nearby morale and bonds. Food shortages gently reduce morale and work speed; nobody dies.</p></article></div><div class="shortcut-list"><span><kbd>Space</kbd> Pause</span><span><kbd>WASD / arrows</kbd> Pan</span><span><kbd>Q / E</kbd> Rotate</span><span><kbd>Middle drag</kbd> Orbit</span><span><kbd>Scroll</kbd> Zoom</span><span><kbd>B</kbd> Build panel</span><span><kbd>H</kbd> Hide interface</span><span><kbd>G</kbd> Grid</span><span><kbd>I</kbd> Select idle</span><span><kbd>Home</kbd> Center</span><span><kbd>1 / 2 / 4</kbd> Speed</span><span><kbd>Ctrl / Cmd + S</kbd> Save</span></div><p class="small-note">Auto-work finds a new job when a resource is exhausted or construction finishes. Explicit move orders end in standing by. Your village pauses while a menu is open or the game is closed.</p>`,
     );
   } else if (type === "settings") {
     modalShell(
@@ -663,7 +712,12 @@ $("settings").onclick = () => openModal("settings");
 $("help").onclick = () => openModal("help");
 $("research").onclick = () => openModal("research");
 $("community").onclick = () => openModal("community");
-$("population").onclick = () => select([]);
+$("population").onclick = () => {
+  select([]);
+  $("inspector-panel").hidden = false;
+  $("inspector-panel").querySelector("summary")!.textContent = "Village";
+};
+$("chrome-toggle").onclick = toggleChrome;
 $("home").onclick = () => scene.home();
 $("grid").onclick = () => {
   grid = !grid;
@@ -748,6 +802,13 @@ window.addEventListener("keydown", (e) => {
     e.preventDefault();
   if (e.repeat) return;
   if (e.code === "Space") setSpeed(speed ? 0 : 1);
+  if (e.code === "KeyH" && !e.ctrlKey && !e.metaKey && !e.altKey)
+    toggleChrome();
+  if (e.code === "KeyB" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    if (app.classList.contains("chrome-hidden")) toggleChrome();
+    const panel = $<HTMLDetailsElement>("build-panel");
+    panel.open = !panel.open;
+  }
   if (e.code === "KeyR" && build) {
     rotation = (rotation + 1) % 2;
     updatePreview();
