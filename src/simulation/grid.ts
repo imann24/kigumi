@@ -22,12 +22,17 @@ function contains(b: Building, x: number, z: number) {
  * the paddy already underfoot (including after reassignment/state changes).
  * Never erase terrain, resources, or overlapping solid buildings. */
 export function routeWalkable(w: World, from: Point, farmId?: number) {
-  const farms = w.buildings.filter(
+  return walkableWithFarms(w, routeFarms(w, from, farmId));
+}
+function routeFarms(w: World, from: Point, farmId?: number) {
+  return w.buildings.filter(
     (b) =>
       b.kind === "farm" &&
       ((b.id === farmId && b.progress >= 1) ||
         contains(b, Math.floor(from.x), Math.floor(from.z))),
   );
+}
+function walkableWithFarms(w: World, farms: Building[]) {
   return (x: number, z: number) => {
     if (walkable(w, x, z)) return true;
     if (!inside(w, x, z) || !farms.some((b) => contains(b, x, z))) return false;
@@ -53,6 +58,7 @@ export function farmWorkSpots(w: World, farm: Building): Point[] {
 const navigation = new WeakMap<World, Uint8Array>();
 export function invalidateNavigation(w: World) {
   navigation.delete(w);
+  connectivity.delete(w);
 }
 export function walkable(w: World, x: number, z: number) {
   if (!inside(w, x, z)) return false;
@@ -81,6 +87,80 @@ export function perimeter(w: World, p: Point, width = 1, depth = 1): Point[] {
     }
   return result;
 }
+// Cursor queries need only connectivity, not weighted paths for every selected
+// worker. Share one linear flood per navigation/access context across the group
+// and across ticks. Farm entry and exit use exactly the same access predicate as A*.
+const connectivity = new WeakMap<World, Map<string, Int32Array>>();
+function connectedRegions(w: World, from: Point, farmId?: number) {
+  let contexts = connectivity.get(w);
+  if (!contexts) connectivity.set(w, (contexts = new Map()));
+  const farms = routeFarms(w, from, farmId);
+  const key = farms.map((b) => b.id).join(",");
+  let regions = contexts.get(key);
+  if (regions) return regions;
+  const allowed = walkableWithFarms(w, farms);
+  regions = new Int32Array(w.size * w.size);
+  for (let i = 0; i < regions.length; i++)
+    if (allowed(i % w.size, Math.floor(i / w.size))) regions[i] = -1;
+  const queue = new Int32Array(regions.length);
+  let region = 0;
+  for (let i = 0; i < regions.length; i++) {
+    if (regions[i] !== -1) continue;
+    regions[i] = ++region;
+    let head = 0,
+      tail = 1;
+    queue[0] = i;
+    while (head < tail) {
+      const current = queue[head++],
+        x = current % w.size,
+        z = Math.floor(current / w.size);
+      const visit = (nx: number, nz: number) => {
+        if (!inside(w, nx, nz)) return;
+        const next = cell(w, nx, nz);
+        if (regions![next] !== -1) return;
+        regions![next] = region;
+        queue[tail++] = next;
+      };
+      visit(x + 1, z);
+      visit(x - 1, z);
+      visit(x, z + 1);
+      visit(x, z - 1);
+    }
+  }
+  // Bound contexts when players inspect many different paddies/worker groups.
+  if (contexts.size >= 256) contexts.delete(contexts.keys().next().value!);
+  contexts.set(key, regions);
+  return regions;
+}
+
+/** Boolean equivalent of findPath, including exiting a blocked starting tile. */
+export function hasPath(
+  w: World,
+  from: Point,
+  goals: Point[],
+  farmId?: number,
+): boolean {
+  if (!goals.length) return false;
+  const x = Math.floor(from.x),
+    z = Math.floor(from.z);
+  if (!inside(w, x, z)) return findPath(w, from, goals, farmId) !== null;
+  const regions = connectedRegions(w, from, farmId);
+  const start = regions[cell(w, x, z)];
+  const reaches = (region: number) =>
+    region > 0 &&
+    goals.some(
+      (g) => inside(w, g.x, g.z) && regions[cell(w, g.x, g.z)] === region,
+    );
+  if (start > 0) return reaches(start);
+  // A* permits leaving an invalid start, but never traversing another blocked tile.
+  return [
+    [x + 1, z],
+    [x - 1, z],
+    [x, z + 1],
+    [x, z - 1],
+  ].some(([nx, nz]) => inside(w, nx, nz) && reaches(regions[cell(w, nx, nz)]));
+}
+
 export const distance = (a: Point, b: Point) =>
   Math.abs(a.x - b.x) + Math.abs(a.z - b.z);
 /** A* with the same road weights as movement. No diagonal corner cutting. */

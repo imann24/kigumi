@@ -649,8 +649,9 @@ function openModal(type: string) {
 }
 // Interaction stays on the canvas; UI never leaks placement clicks into the world.
 const canvas = $<HTMLCanvasElement>("world");
-// Cache path/placement validation per semantic target and simulation tick. Picking
-// still follows the rendered geometry as the camera or villagers move.
+// Cache expensive placement checks per tile/tick. Contextual orders read live
+// selection, positions and reservations; their terrain connectivity cache only
+// changes with navigation/access, never merely because the simulation tick advanced.
 let cursorCache: {
   world: World;
   key: string;
@@ -659,12 +660,12 @@ let cursorCache: {
 scene.cursor.resolve = (x, y) => {
   if (modal || erasing || drag || (!build && !selected.length)) return null;
   const w = session.world;
-  const hit = build ? null : scene.hit(x, y);
+  if (!build) return contextualCursor(w, selected, scene.hit(x, y), null);
   const p = scene.pointerWorld(x, y);
-  const key = `${w.tick}:${selected.join(",")}:${build}:${rotation}:${hit?.type}:${hit?.id}:${p ? `${Math.floor(p.x)},${Math.floor(p.z)}` : ""}`;
+  const key = `${w.tick}:${build}:${rotation}:${p ? `${Math.floor(p.x)},${Math.floor(p.z)}` : ""}`;
   if (cursorCache?.world === w && cursorCache.key === key)
     return cursorCache.value;
-  const value = contextualCursor(w, selected, hit, p, build, rotation);
+  const value = contextualCursor(w, selected, null, p, build, rotation);
   cursorCache = { world: w, key, value };
   return value;
 };

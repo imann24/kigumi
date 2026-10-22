@@ -511,24 +511,38 @@ export function approachPath(
     goals.some((g) => Math.floor(v.x) === g.x && Math.floor(v.z) === g.z)
   )
     return [];
-  const free = goals.filter(
-    (g) =>
-      !w.villagers.some(
-        (other) =>
-          other.id !== v.id &&
-          ((Math.floor(other.x) === g.x && Math.floor(other.z) === g.z) ||
-            (other.path.length > 0 &&
-              Math.floor(other.path.at(-1)!.x) === g.x &&
-              Math.floor(other.path.at(-1)!.z) === g.z)),
-      ),
-  );
-  // Paddy spots are exclusive; a full paddy waits instead of stacking farmers.
-  return findPath(
-    w,
-    v,
-    farmId !== undefined || free.length ? free : goals,
-    farmId,
-  );
+  return findPath(w, v, approachTargets(w, goals, farmId)(v), farmId);
+}
+
+/** Snapshot current positions/reservations once for a group eligibility query. */
+export function approachTargets(w: World, goals: Point[], farmId?: number) {
+  // null marks a tile shared by multiple workers; repeated claims by one worker
+  // (standing on their reserved endpoint) still belong only to that worker.
+  const owners = new Map<number, number | null>();
+  const claim = (p: Point, id: number) => {
+    const tile = cell(w, Math.floor(p.x), Math.floor(p.z));
+    const owner = owners.get(tile);
+    owners.set(tile, owner === undefined || owner === id ? id : null);
+  };
+  for (const other of w.villagers) {
+    claim(other, other.id);
+    if (other.path.length) claim(other.path.at(-1)!, other.id);
+  }
+  return (v: Villager) => {
+    // Ordinary approach can work from an occupied perimeter tile already underfoot.
+    if (farmId === undefined) {
+      const here = goals.find(
+        (g) => Math.floor(v.x) === g.x && Math.floor(v.z) === g.z,
+      );
+      if (here) return [here];
+    }
+    const free = goals.filter((g) => {
+      const owner = owners.get(cell(w, g.x, g.z));
+      return owner === undefined || owner === v.id;
+    });
+    // Paddy spots are exclusive; other approaches fall back to occupied goals.
+    return farmId !== undefined || free.length ? free : goals;
+  };
 }
 function approachSpots(
   w: World,
