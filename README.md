@@ -24,27 +24,28 @@ You begin with ten villagers, a hall, two homes, a storehouse, and a rice paddy.
 - Select a villager with **left click**, or **drag a box** to select a group. **Shift** adds villagers to a selection.
 - **Right-click** a tree, berry bush, or stone deposit to gather; an unfinished building to construct; a paddy or workshop to work; or open ground to move.
 - Workers carry real loads to a reachable hall or storehouse. Nearby storage reduces travel, and paths make walking **45% faster**. A route must remain open to each building and villager when placing a structure.
-- Choose a building from the bottom bar, then click a valid grid footprint. **R** rotates. **Escape** or right-click cancels. Selected villagers build, or two nearby auto-workers are assigned automatically.
+- Choose a building from the bottom bar, then click a valid grid footprint. **R** or the **Rotate 90°** button cycles through South, East, North and West; the placement hint shows the facing and footprint. **Escape** or right-click cancels. Repeated placements keep their direction; choosing another building or re-entering placement starts facing South. Selected villagers build, or two nearby auto-workers are assigned automatically.
 - Drag to place paths or bridge tiles. **Lift a path** removes paths; bridge removal checks that nobody is stranded. Buildings can be dismantled from their inspector for half their material cost.
 - Homes add six places, or eight after Timber joinery. **Welcome a villager** costs 35 food and takes twelve simulation seconds. The default global cap is **200**, adjustable from 10 to 500 in Settings; 500 is an experimental setting, not a performance target.
 - Auto-work finds new tasks after construction or resource depletion. Explicit movement ends in standing by. The inspector can toggle auto-work, stop a worker, or ask them to find work again.
 - Five technologies unlock workshops, tea houses and shrines, improve carrying capacity, cultivation and craft. Workshops need assigned workers to produce insight; the hall produces it slowly on its own.
 - Food consumption is gentle and never kills residents. Proximity creates acquaintances, friendships and occasional friction. Amenities lift nearby morale and strengthen warm encounters. Town management comes first.
 
-| Control                     | Action                |
-| --------------------------- | --------------------- |
-| WASD / arrows               | Pan                   |
-| Q / E or middle-button drag | Orbit                 |
-| Scroll                      | Zoom                  |
-| Home                        | Center camera         |
-| Space                       | Pause/resume          |
-| 1 / 2 / 4                   | Simulation speed      |
-| G                           | Toggle grid           |
-| B                           | Toggle build panel    |
-| H                           | Hide/show interface   |
-| I                           | Select idle villagers |
-| Ctrl / Cmd + S              | Manual save           |
-| ?                           | Field guide           |
+| Control                      | Action                |
+| ---------------------------- | --------------------- |
+| WASD / arrows                | Pan                   |
+| Q / E or middle-button drag  | Orbit                 |
+| R (while placing a building) | Rotate building 90°   |
+| Scroll                       | Zoom                  |
+| Home                         | Center camera         |
+| Space                        | Pause/resume          |
+| 1 / 2 / 4                    | Simulation speed      |
+| G                            | Toggle grid           |
+| B                            | Toggle build panel    |
+| H                            | Hide/show interface   |
+| I                            | Select idle villagers |
+| Ctrl / Cmd + S               | Manual save           |
+| ?                            | Field guide           |
 
 Panel headings collapse the build palette, map, progress, and selection details. Build, map, and progress panel preferences are remembered on this device. Selection details appear when you select an object; click the population count for the village overview. **H** hides the interface while keeping a restore button visible.
 
@@ -52,7 +53,7 @@ Menus and hidden windows pause simulation. The village does not simulate while c
 
 ## Saves
 
-Autosaves run every 30 seconds and on hide/close. The manual slot is separate. Saves live in the browser/WebView's local storage on this device; the browser development version and native app have separate storage. Export/import JSON copies from Settings to move a village between devices. Loading validates the format, version, entities, commands, bounds, and numerical state before rendering. Failed local writes show a warning. Back up important villages with an export; clearing application data removes local saves.
+Autosaves run every 30 seconds and on hide/close. The manual slot is separate. Saves live in the browser/WebView's local storage on this device; the browser development version and native app have separate storage. Export/import JSON copies from Settings to move a village between devices. Loading validates the format, version, entities, commands, bounds, and numerical state before rendering. Building orientation is saved with the village. Existing v1 saves still load; older game builds cannot read saves containing the new North/West orientations. Failed local writes show a warning. Back up important villages with an export; clearing application data removes local saves.
 
 ## Structure and extension points
 
