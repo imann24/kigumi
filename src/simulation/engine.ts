@@ -636,8 +636,12 @@ function updateVillager(w: World, v: Villager) {
   const carry = w.techs.includes("wheelbarrow") ? 12 : 8;
   if (
     v.cargo &&
+    // Direct movement and standing by take priority over automatic delivery.
+    // Keep the load until the player assigns work again.
+    v.order.type !== "move" &&
+    v.order.type !== "idle" &&
     (v.cargo.amount >= carry ||
-      ["auto", "idle", "build", "move"].includes(v.order.type) ||
+      ["auto", "build"].includes(v.order.type) ||
       v.task.startsWith("Hauling") ||
       v.task === "No route to storage")
   ) {

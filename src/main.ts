@@ -608,9 +608,8 @@ function openModal(type: string) {
 }
 // Interaction stays on the canvas; UI never leaks placement clicks into the world.
 const canvas = $<HTMLCanvasElement>("world");
-canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 canvas.addEventListener("pointerdown", (e) => {
-  if (e.button !== 0) return;
+  if (e.button !== 0 || e.ctrlKey) return;
   pointer = scene.pointerWorld(e.clientX, e.clientY);
   if (build || erasing) {
     lastPaint = "";
@@ -641,44 +640,47 @@ canvas.addEventListener("pointermove", (e) => {
     });
   }
 });
-window.addEventListener("pointerup", (e) => {
-  if (e.button === 2 && e.target === canvas) {
-    if (build || erasing) {
-      build = null;
-      erasing = false;
-      renderCards();
-      updatePreview();
-      return;
-    }
-    if (!selected.length) {
-      toast("Select a villager first, then right-click to give an order.");
-      return;
-    }
-    const hit = scene.hit(e.clientX, e.clientY),
-      p = scene.pointerWorld(e.clientX, e.clientY);
-    let order: Order | undefined;
-    if (hit?.type === "resource") order = { type: "gather", target: hit.id };
-    else if (hit?.type === "building") {
-      const b = session.world.buildings.find((b) => b.id === hit.id)!;
-      if (b.progress < 1) order = { type: "build", target: b.id };
-      else if (b.kind === "farm" || b.kind === "workshop")
-        order = { type: "work", target: b.id };
-      else toast("Right-click a paddy, workshop, resource, or open ground.");
-    } else if (p) order = { type: "move", target: p };
-    if (order && dispatch({ type: "order", ids: selected, order })) {
-      toast(
-        order.type === "move"
-          ? "On our way."
-          : order.type === "gather"
-            ? "Gathering party assigned."
-            : order.type === "build"
-              ? "Let’s get building."
-              : "Workers assigned.",
-      );
-    }
+// Native secondary clicks (including macOS Control-click) may not emit a
+// matching right-button pointerup. Handle the context action exactly once.
+canvas.addEventListener("contextmenu", (e) => {
+  e.preventDefault();
+  if (modal) return;
+  if (build || erasing) {
+    build = null;
+    erasing = false;
+    renderCards();
+    updatePreview();
     return;
   }
-  if (e.button !== 0 || !drag) return;
+  if (!selected.length) {
+    toast("Select a villager first, then right-click to give an order.");
+    return;
+  }
+  const hit = scene.hit(e.clientX, e.clientY),
+    p = scene.pointerWorld(e.clientX, e.clientY);
+  let order: Order | undefined;
+  if (hit?.type === "resource") order = { type: "gather", target: hit.id };
+  else if (hit?.type === "building") {
+    const b = session.world.buildings.find((b) => b.id === hit.id)!;
+    if (b.progress < 1) order = { type: "build", target: b.id };
+    else if (b.kind === "farm" || b.kind === "workshop")
+      order = { type: "work", target: b.id };
+    else toast("Right-click a paddy, workshop, resource, or open ground.");
+  } else if (p) order = { type: "move", target: p };
+  if (order && dispatch({ type: "order", ids: selected, order })) {
+    toast(
+      order.type === "move"
+        ? "On our way."
+        : order.type === "gather"
+          ? "Gathering party assigned."
+          : order.type === "build"
+            ? "Let’s get building."
+            : "Workers assigned.",
+    );
+  }
+});
+window.addEventListener("pointerup", (e) => {
+  if (e.button !== 0 || e.ctrlKey || !drag) return;
   const start = drag;
   drag = null;
   $("selection-box").hidden = true;

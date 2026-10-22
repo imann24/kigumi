@@ -132,6 +132,48 @@ describe("village simulation", () => {
     expect(Math.floor(v.x)).toBe(17);
     expect(Math.floor(v.z)).toBe(22);
   });
+  it("moves a selected group immediately with cargo, even without reachable storage", () => {
+    const w = createWorld();
+    quiet(w);
+    w.buildings = [];
+    w.nodes = [];
+    w.roads = [];
+    invalidateNavigation(w);
+    const party = w.villagers.slice(0, 3);
+    for (const [i, v] of party.entries()) {
+      v.x = 4.5;
+      v.z = 4.5 + i;
+      v.auto = true;
+      v.cargo = { kind: "wood", amount: i === 0 ? 1 : 8 };
+      v.path = [{ x: 3.5, z: v.z }];
+      v.task = "Hauling wood";
+      v.blocked = 8;
+    }
+    expect(
+      applyCommand(w, {
+        type: "order",
+        ids: party.map((v) => v.id),
+        order: { type: "move", target: { x: 8.5, z: 4.5 } },
+      }).ok,
+    ).toBe(true);
+    step(w);
+    for (const v of party) {
+      expect(v.task).toBe("Walking");
+      expect(v.path.length).toBeGreaterThan(0);
+    }
+    run(w, 20);
+    for (const [i, v] of party.entries()) {
+      expect(v.order.type).toBe("idle");
+      expect(v.x).toBe(8.5);
+      expect(v.z).toBe(4.5);
+      expect(v.path).toEqual([]);
+      expect(v.cargo).toEqual({ kind: "wood", amount: i === 0 ? 1 : 8 });
+    }
+    // Standing by after arrival must not start a new hauling trip.
+    run(w, 20);
+    expect(party.every((v) => v.x === 8.5 && v.z === 4.5)).toBe(true);
+    expect(party.every((v) => v.task === "Resting")).toBe(true);
+  });
   it("limits worker assignments and makes paddies produce renewable food", () => {
     const w = createWorld();
     quiet(w);
