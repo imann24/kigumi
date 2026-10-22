@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { cell } from "../simulation/grid";
 import type { Point, Villager, World } from "../simulation/types";
+import { paddyHeight } from "./surfaces";
 
 /** Only the simulation's remaining waypoints, including its chosen work/haul endpoint. */
 export function plannedRoute(v: Villager, rendered: Point = v): Point[] {
@@ -115,6 +116,7 @@ export class PlannedPaths extends THREE.Group {
     const bridges = new Set(world.bridges),
       roads = new Set(world.roads);
     const heightAt = (p: Point) => {
+      if (paddyHeight(world, p)) return paddyHeight(world, p) + 0.025;
       const tile = cell(world, Math.floor(p.x), Math.floor(p.z));
       return bridges.has(tile) ? 0.245 : roads.has(tile) ? 0.105 : 0.04;
     };

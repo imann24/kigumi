@@ -11,10 +11,44 @@ export function inside(w: World, x: number, z: number) {
   return x >= 0 && z >= 0 && x < w.size && z < w.size;
 }
 export function buildingAt(w: World, x: number, z: number) {
-  return w.buildings.find((b) => {
-    const [a, c] = dimensions(b);
-    return x >= b.x && z >= b.z && x < b.x + a && z < b.z + c;
-  });
+  return w.buildings.find((b) => contains(b, x, z));
+}
+function contains(b: Building, x: number, z: number) {
+  const [width, depth] = dimensions(b);
+  return x >= b.x && z >= b.z && x < b.x + width && z < b.z + depth;
+}
+
+/** Access is local to a route: enter the assigned, finished paddy, or leave
+ * the paddy already underfoot (including after reassignment/state changes).
+ * Never erase terrain, resources, or overlapping solid buildings. */
+export function routeWalkable(w: World, from: Point, farmId?: number) {
+  const farms = w.buildings.filter(
+    (b) =>
+      b.kind === "farm" &&
+      ((b.id === farmId && b.progress >= 1) ||
+        contains(b, Math.floor(from.x), Math.floor(from.z))),
+  );
+  return (x: number, z: number) => {
+    if (walkable(w, x, z)) return true;
+    if (!inside(w, x, z) || !farms.some((b) => contains(b, x, z))) return false;
+    if (w.terrain[cell(w, x, z)] === 1 && !w.bridges.includes(cell(w, x, z)))
+      return false;
+    return (
+      !w.nodes.some((n) => n.amount > 0 && n.x === x && n.z === z) &&
+      !w.buildings.some((b) => contains(b, x, z) && !farms.includes(b))
+    );
+  };
+}
+
+export function farmWorkSpots(w: World, farm: Building): Point[] {
+  if (farm.kind !== "farm" || farm.progress < 1) return [];
+  const allowed = routeWalkable(w, { x: -1, z: -1 }, farm.id);
+  const [width, depth] = dimensions(farm);
+  const result: Point[] = [];
+  for (let x = farm.x; x < farm.x + width; x++)
+    for (let z = farm.z; z < farm.z + depth; z++)
+      if (allowed(x, z)) result.push({ x, z });
+  return result;
 }
 const navigation = new WeakMap<World, Uint8Array>();
 export function invalidateNavigation(w: World) {
@@ -54,11 +88,13 @@ export function findPath(
   w: World,
   from: Point,
   goals: Point[],
+  farmId?: number,
 ): Point[] | null {
   const sx = Math.floor(from.x),
     sz = Math.floor(from.z),
     start = cell(w, sx, sz);
-  const valid = goals.filter((p) => walkable(w, p.x, p.z));
+  const allowed = routeWalkable(w, from, farmId);
+  const valid = goals.filter((p) => allowed(p.x, p.z));
   if (!valid.length) return null;
   const targets = new Set(valid.map((p) => cell(w, p.x, p.z)));
   if (targets.has(start)) return [];
@@ -100,7 +136,7 @@ export function findPath(
     ]) {
       const nx = x + dx,
         nz = z + dz;
-      if (!walkable(w, nx, nz)) continue;
+      if (!allowed(nx, nz)) continue;
       const next = cell(w, nx, nz),
         score = g.get(current)! + (roads.has(next) ? 1 / 1.45 : 1);
       if (score < (g.get(next) ?? Infinity)) {

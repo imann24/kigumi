@@ -8,6 +8,7 @@ import {
 import { VillageScene } from "../src/game/scene";
 import { ResourcePulses } from "../src/game/resource-pulses";
 import { PlannedPaths } from "../src/game/planned-paths";
+import { ResourcePulses } from "../src/game/resource-pulses";
 import { BUILDINGS } from "../src/simulation/catalog";
 import { createWorld } from "../src/simulation/engine";
 import { dimensions } from "../src/simulation/grid";
