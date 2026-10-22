@@ -654,7 +654,7 @@ function openModal(type: string) {
 }
 // Interaction stays on the canvas; UI never leaks placement clicks into the world.
 const canvas = $<HTMLCanvasElement>("world");
-const cameraPan = installSpacePan(canvas, {
+const cameraPan = installSpacePan(scene, {
   enabled: () => !modal,
   tap: () => setSpeed(speed ? 0 : 1),
   start: () => {
@@ -680,6 +680,7 @@ canvas.addEventListener("pointerdown", (e) => {
   canvas.setPointerCapture(e.pointerId);
 });
 canvas.addEventListener("pointermove", (e) => {
+  if (e.defaultPrevented) return;
   pointer = scene.pointerWorld(e.clientX, e.clientY);
   updatePreview();
   if (!drag) return;
@@ -740,7 +741,7 @@ canvas.addEventListener("contextmenu", (e) => {
   }
 });
 window.addEventListener("pointerup", (e) => {
-  if (e.button !== 0 || e.ctrlKey || !drag) return;
+  if (e.defaultPrevented || e.button !== 0 || e.ctrlKey || !drag) return;
   const start = drag;
   drag = null;
   $("selection-box").hidden = true;

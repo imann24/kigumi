@@ -43,7 +43,8 @@ function village() {
   const scene = new VillageScene({
     clientWidth: 800,
     clientHeight: 600,
-  } as HTMLCanvasElement);
+    addEventListener() {},
+  } as unknown as HTMLCanvasElement);
   const world = createWorld(42);
   scene.setWorld(world);
   const model = (id: number) => {

@@ -61,7 +61,10 @@ export function isUiControl(target: EventTarget | null) {
 
 /** Capture before OrbitControls and world actions; leave ordinary UI events alone. */
 export function installSpacePan(
-  canvas: HTMLCanvasElement,
+  surface: {
+    canvas: HTMLCanvasElement;
+    cursor?: { setOverride: (value: "grab" | "grabbing" | null) => void };
+  },
   options: {
     enabled: () => boolean;
     tap: () => void;
@@ -73,14 +76,17 @@ export function installSpacePan(
     hover: (x: number, y: number) => void;
   },
 ) {
+  const { canvas } = surface;
   const gesture = new PanGesture();
   let previous = { x: 0, y: 0 };
   let buttons = 0;
   let suppressClick = false;
   const cursor = () => {
-    // Temporary override only. Removing the attribute restores contextual CSS.
-    if (gesture.active) canvas.dataset.cameraPan = "grabbing";
-    else if (gesture.space) canvas.dataset.cameraPan = "grab";
+    const value = gesture.active ? "grabbing" : gesture.space ? "grab" : null;
+    // Use the shared cursor owner when available; the attribute is the fallback
+    // for builds without contextual cursors. Never compete with its inline style.
+    if (surface.cursor) surface.cursor.setOverride(value);
+    else if (value) canvas.dataset.cameraPan = value;
     else delete canvas.dataset.cameraPan;
   };
   const consume = (e: Event) => {
@@ -171,7 +177,9 @@ export function installSpacePan(
       if (gesture.active && options.enabled()) options.move(previous, next);
       previous = next;
       options.hover(next.x, next.y);
-      consume(e);
+      // Let passive hover tracking see the pointer. World actions ignore events
+      // claimed with preventDefault; pointerdown never reached OrbitControls.
+      e.preventDefault();
     },
     true,
   );
@@ -183,7 +191,7 @@ export function installSpacePan(
       if (canvas.hasPointerCapture(e.pointerId))
         canvas.releasePointerCapture(e.pointerId);
       options.hover(e.clientX, e.clientY);
-      consume(e);
+      e.preventDefault();
       cursor();
     },
     true,
@@ -194,7 +202,7 @@ export function installSpacePan(
       if (!gesture.end(e.pointerId)) return;
       buttons = 0;
       cancel();
-      consume(e);
+      e.preventDefault();
     },
     true,
   );
@@ -222,6 +230,7 @@ export function installSpacePan(
   canvas.addEventListener(
     "wheel",
     (e) => {
+      if (gesture.space) gesture.used = true;
       if (gesture.pointerId !== null) consume(e);
     },
     { capture: true, passive: false },

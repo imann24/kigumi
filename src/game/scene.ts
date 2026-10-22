@@ -443,7 +443,8 @@ export class VillageScene {
   }
   pointerWorld(clientX: number, clientY: number): Point | null {
     const rect = this.canvas.getBoundingClientRect();
-    if (!rect.width || !rect.height) return null;
+    if (!rect.width || !rect.height || !Number.isFinite(clientX + clientY))
+      return null;
     this.pointer.set(
       ((clientX - rect.left) / rect.width) * 2 - 1,
       (-(clientY - rect.top) / rect.height) * 2 + 1,
