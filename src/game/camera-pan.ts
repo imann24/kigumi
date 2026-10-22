@@ -167,7 +167,10 @@ export function installSpacePan(
     "pointermove",
     (e) => {
       buttons = e.buttons;
-      if (gesture.pointerId !== e.pointerId) return;
+      if (gesture.pointerId !== e.pointerId) {
+        if (gesture.space) cursor();
+        return;
+      }
       if (!(e.buttons & 1)) {
         gesture.end(e.pointerId);
         cancel();
