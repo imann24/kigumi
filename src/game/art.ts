@@ -294,7 +294,7 @@ export function villagerModel(index: number) {
   cargo.visible = false;
   return g;
 }
-/** Ground-plane overlays stay legible through foliage and on light paths. */
+/** Ground markings: the sage edge reads on paths; entities occlude both layers. */
 function selectionLayer(
   geometry: THREE.BufferGeometry,
   color: string,
@@ -306,10 +306,10 @@ function selectionLayer(
       color,
       side: THREE.DoubleSide,
       transparent: true,
-      depthTest: false,
+      depthTest: true,
       depthWrite: false,
       toneMapped: false,
-      fog: false,
+      opacity: 0.95,
     }),
   );
   mesh.rotation.x = -Math.PI / 2;
@@ -321,12 +321,12 @@ export function selectionRing(radius = 0.4) {
   const group = new THREE.Group();
   group.add(
     selectionLayer(
-      new THREE.RingGeometry(radius * 0.78, radius + 0.035, 64),
-      "#405445",
+      new THREE.RingGeometry(radius - 0.1, radius + 0.025, 64),
+      "#637561",
       10,
     ),
     selectionLayer(
-      new THREE.RingGeometry(radius * 0.84, radius, 64),
+      new THREE.RingGeometry(radius - 0.075, radius, 64),
       "#fff0ba",
       11,
     ),
@@ -335,12 +335,7 @@ export function selectionRing(radius = 0.4) {
 }
 
 export function villagerSelectionRing() {
-  const group = new THREE.Group();
-  group.add(
-    selectionLayer(new THREE.RingGeometry(0.34, 0.73, 64), "#182b26", 12),
-    selectionLayer(new THREE.RingGeometry(0.43, 0.64, 64), "#fff36b", 13),
-  );
-  return group;
+  return selectionRing(0.6);
 }
 
 export function selectionFootprint(width: number, depth: number) {
@@ -348,24 +343,29 @@ export function selectionFootprint(width: number, depth: number) {
   const border = (padding: number, thickness: number) => {
     const x = width / 2 + padding,
       y = depth / 2 + padding;
+    const rounded = (path: THREE.Path, x: number, y: number, r: number) => {
+      path.moveTo(-x + r, -y);
+      path.lineTo(x - r, -y);
+      path.quadraticCurveTo(x, -y, x, -y + r);
+      path.lineTo(x, y - r);
+      path.quadraticCurveTo(x, y, x - r, y);
+      path.lineTo(-x + r, y);
+      path.quadraticCurveTo(-x, y, -x, y - r);
+      path.lineTo(-x, -y + r);
+      path.quadraticCurveTo(-x, -y, -x + r, -y);
+      path.closePath();
+      return path;
+    };
     const shape = new THREE.Shape();
-    shape.moveTo(-x, -y);
-    shape.lineTo(x, -y);
-    shape.lineTo(x, y);
-    shape.lineTo(-x, y);
-    shape.closePath();
-    const hole = new THREE.Path();
-    hole.moveTo(-x + thickness, -y + thickness);
-    hole.lineTo(-x + thickness, y - thickness);
-    hole.lineTo(x - thickness, y - thickness);
-    hole.lineTo(x - thickness, -y + thickness);
-    hole.closePath();
-    shape.holes.push(hole);
+    rounded(shape, x, y, 0.22);
+    shape.holes.push(
+      rounded(new THREE.Path(), x - thickness, y - thickness, 0.22 - thickness),
+    );
     return new THREE.ShapeGeometry(shape);
   };
   group.add(
-    selectionLayer(border(0.15, 0.18), "#405445", 10),
-    selectionLayer(border(0.11, 0.1), "#fff0ba", 11),
+    selectionLayer(border(0.2, 0.12), "#637561", 10),
+    selectionLayer(border(0.175, 0.07), "#fff0ba", 11),
   );
   return group;
 }

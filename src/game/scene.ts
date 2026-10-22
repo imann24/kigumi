@@ -249,6 +249,14 @@ export class VillageScene {
     this.selectedObject = object;
     this.updateMarkers();
   }
+  private markerHeight(p: Point) {
+    // Clear the road surface (0.08) and raised bridge planks (0.225).
+    // Depth testing still lets feet, buildings and foliage cover the markings.
+    const w = this.world;
+    return w?.bridges.includes(cell(w, Math.floor(p.x), Math.floor(p.z)))
+      ? 0.245
+      : 0.1;
+  }
   private updateMarkers() {
     disposeGroup(this.markers);
     this.markers.clear();
@@ -256,7 +264,7 @@ export class VillageScene {
     for (const v of this.world.villagers)
       if (this.selected.has(v.id)) {
         const ring = villagerSelectionRing();
-        ring.position.set(v.x, 0.06, v.z);
+        ring.position.set(v.x, this.markerHeight(v), v.z);
         this.markers.add(ring);
       }
     if (this.selectedObject?.type === "building") {
@@ -266,7 +274,7 @@ export class VillageScene {
       if (b) {
         const [a, c] = dimensions(b);
         const ring = selectionFootprint(a, c);
-        ring.position.set(b.x + a / 2, 0.08, b.z + c / 2);
+        ring.position.set(b.x + a / 2, 0.1, b.z + c / 2);
         this.markers.add(ring);
       }
     } else if (this.selectedObject?.type === "resource") {
@@ -275,7 +283,7 @@ export class VillageScene {
       );
       if (n) {
         const ring = selectionRing(n.kind === "wood" ? 0.85 : 0.7);
-        ring.position.set(n.x + 0.5, 0.08, n.z + 0.5);
+        ring.position.set(n.x + 0.5, 0.1, n.z + 0.5);
         this.markers.add(ring);
       }
     }
@@ -541,7 +549,12 @@ export class VillageScene {
       if (this.selected.has(v.id)) {
         const ring = this.markers.children[index++];
         const rendered = this.models.get(`villager:${v.id}`)?.position ?? v;
-        if (ring) ring.position.set(rendered.x, 0.06, rendered.z);
+        if (ring)
+          ring.position.set(
+            rendered.x,
+            this.markerHeight(rendered),
+            rendered.z,
+          );
       }
     for (let i = 0; i < 35; i++) {
       this.temp.position.set(
