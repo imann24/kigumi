@@ -10,6 +10,7 @@ import {
   material,
   selectionFootprint,
   selectionRing,
+  setBuildingProgress,
   stone,
   treeModel,
   villagerModel,
@@ -361,7 +362,7 @@ export class VillageScene {
         this.entities.add(g);
         this.models.set(key, g);
       }
-      g.scale.y = 0.15 + b.progress * 0.85;
+      setBuildingProgress(g, b.progress);
     }
     for (const v of w.villagers) {
       const key = `villager:${v.id}`;
@@ -424,10 +425,17 @@ export class VillageScene {
     const hits = this.ray.intersectObjects(this.entities.children, true);
     for (const hit of hits) {
       let obj: THREE.Object3D | null = hit.object;
+      let target: Hit | null = null;
       while (obj && obj !== this.entities) {
-        if (obj.userData.type) return obj.userData as Hit;
+        // Raycaster also intersects invisible objects, including unfinished roofs.
+        if (!obj.visible) {
+          target = null;
+          break;
+        }
+        if (obj.userData.type) target = obj.userData as Hit;
         obj = obj.parent;
       }
+      if (target) return target;
     }
     return null;
   }
