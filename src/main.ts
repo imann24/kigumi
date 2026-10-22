@@ -2,6 +2,7 @@ import "./style.css";
 import {
   BUILDINGS,
   RESOURCE_LABEL,
+  RECRUIT_COST,
   TECHS,
   type BuildingKind,
   type Resource,
@@ -13,6 +14,8 @@ import {
   morale,
   placementError,
   researchError,
+  recruitCount,
+  recruitError,
   STEP,
 } from "./simulation/engine";
 import { dimensions } from "./simulation/grid";
@@ -26,6 +29,7 @@ import { LocalSession } from "./simulation/session";
 import type { Command, Order, Point, World } from "./simulation/types";
 import { VillageScene, type Hit } from "./game/scene";
 import { thumbnails } from "./game/thumbnails";
+import { productionMarkup } from "./game/production";
 import { icon } from "./icons";
 const $ = <T extends HTMLElement = HTMLElement>(id: string) =>
   document.getElementById(id) as T;
@@ -230,6 +234,7 @@ function renderInspector() {
   const w = session.world,
     el = $("inspector");
   const close = `<button class="close-small" id="clear-selection" aria-label="Clear selection">${icon("close", 16)}</button>`;
+  const welcomeControl = `<button class="primary" id="welcome" aria-describedby="welcome-requirement">${icon("plus", 16)} <span class="welcome-label" id="welcome-label">Welcome a villager</span><span>${RECRUIT_COST} food</span></button><p class="small-note" id="welcome-requirement"></p>`;
   if (selected.length) {
     const villagers = w.villagers.filter((v) => selected.includes(v.id));
     const v = villagers[0];
@@ -278,7 +283,7 @@ function renderInspector() {
     );
     setMarkup(
       el,
-      `${close}<span class="eyebrow">${b.progress < 1 ? "UNDER CONSTRUCTION" : "VILLAGE BUILDING"}</span><img class="inspector-art" src="${thumbs[b.kind]}" alt=""/><h2>${def.name}</h2><p>${def.description}</p>${b.progress < 1 ? `<div class="detail-row"><span>Construction</span><b>${Math.floor(b.progress * 100)}%</b></div><div class="meter"><i style="width:${b.progress * 100}%"></i></div>` : ""}<div class="detail-row"><span>Assigned villagers</span><b>${workers.length}</b></div>${workers.length ? `<p class="small-note">${workers.map((v) => escape(v.name)).join(", ")}</p><button class="wide-button" id="select-workers">Select workers</button>` : ""}${b.kind === "hall" ? `<button class="primary" id="welcome">${icon("plus", 16)} Welcome a villager <span>35 food</span></button>` : ""}${b.kind === "farm" || b.kind === "workshop" || b.progress < 1 ? `<button class="wide-button" id="assign-nearest">${icon("people", 16)} Assign nearest villager</button>` : ""}${b.kind !== "hall" ? '<button class="danger-link" id="demolish">Dismantle · recover 50%</button>' : ""}`,
+      `${close}<span class="eyebrow">${b.progress < 1 ? "UNDER CONSTRUCTION" : "VILLAGE BUILDING"}</span><img class="inspector-art" src="${thumbs[b.kind]}" alt=""/><h2>${def.name}</h2><p>${def.description}</p>${b.progress < 1 ? `<div class="detail-row"><span>Construction</span><b>${Math.floor(b.progress * 100)}%</b></div><div class="meter"><i style="width:${b.progress * 100}%"></i></div>` : ""}<div class="detail-row"><span>Assigned villagers</span><b>${workers.length}</b></div>${workers.length ? `<p class="small-note">${workers.map((v) => escape(v.name)).join(", ")}</p><button class="wide-button" id="select-workers">Select workers</button>` : ""}${b.kind === "hall" ? `<div id="production-status"></div>${welcomeControl}` : ""}${b.kind === "farm" || b.kind === "workshop" || b.progress < 1 ? `<button class="wide-button" id="assign-nearest">${icon("people", 16)} Assign nearest villager</button>` : ""}${b.kind !== "hall" ? '<button class="danger-link" id="demolish">Dismantle · recover 50%</button>' : ""}`,
     );
     if ($("select-workers"))
       $("select-workers").onclick = () => select(workers.map((v) => v.id));
@@ -317,13 +322,49 @@ function renderInspector() {
   } else {
     setMarkup(
       el,
-      `<span class="eyebrow">A PLACE TO BELONG</span><h2>Village life</h2><div class="village-portrait">${icon("hall", 34)}<span>Growing gently.<small>Every path is a possibility.</small></span></div><div class="detail-row"><span>Homes & gathering places</span><b>${w.buildings.filter((b) => b.progress === 1 && ["hall", "house", "tea", "shrine"].includes(b.kind)).length}</b></div><div class="detail-row"><span>Working villagers</span><b>${w.villagers.filter((v) => !["idle", "move"].includes(v.order.type)).length} / ${w.villagers.length}</b></div><div class="detail-row"><span>Space to grow</span><b>${Math.max(0, capacity(w) - w.villagers.length)} places</b></div><button class="primary" id="welcome" ${w.recruit !== null ? "disabled" : ""}>${icon("plus", 16)} ${w.recruit !== null ? "A villager is on the way…" : "Welcome a villager"} ${w.recruit === null ? "<span>35 food</span>" : ""}</button><p class="small-note">${w.recruit !== null ? "Preparing a warm welcome." : "Build homes, connect workplaces, and let your village find its rhythm."}</p><div class="inspector-rule"></div><span class="eyebrow">AROUND THE VILLAGE</span><p class="latest-event">${escape(w.log.at(-1)?.text ?? "")}</p>`,
+      `<span class="eyebrow">A PLACE TO BELONG</span><h2>Village life</h2><div class="village-portrait">${icon("hall", 34)}<span>Growing gently.<small>Every path is a possibility.</small></span></div><div class="detail-row"><span>Homes & gathering places</span><b>${w.buildings.filter((b) => b.progress === 1 && ["hall", "house", "tea", "shrine"].includes(b.kind)).length}</b></div><div class="detail-row"><span>Working villagers</span><b>${w.villagers.filter((v) => !["idle", "move"].includes(v.order.type)).length} / ${w.villagers.length}</b></div><div class="detail-row"><span>Space to grow</span><b>${Math.max(0, capacity(w) - w.villagers.length - recruitCount(w))} unreserved places</b></div>${welcomeControl}<p class="small-note">${recruitCount(w)} villagers on the way. Select the hall to see the welcome queue and research.</p><div class="inspector-rule"></div><span class="eyebrow">AROUND THE VILLAGE</span><p class="latest-event">${escape(w.log.at(-1)?.text ?? "")}</p>`,
     );
     $("welcome").onclick = () => dispatch({ type: "recruit" });
   }
   $("inspector-panel").querySelector("summary")!.textContent =
     el.querySelector("h2")?.textContent ?? "Selection";
   if ($("clear-selection")) $("clear-selection").onclick = () => select([]);
+  const welcome = $<HTMLButtonElement>("welcome");
+  if (welcome) {
+    const error = recruitError(w);
+    welcome.disabled = !!error;
+    welcome.title = error ?? "Reserve one place and pay for a villager";
+    $("welcome-label").textContent =
+      w.recruit === null ? "Welcome a villager" : "Queue a villager";
+    $("welcome-requirement").textContent =
+      error ?? `${RECRUIT_COST} food and one place reserved per order.`;
+  }
+  renderProduction();
+}
+function renderProduction() {
+  const el = $("production-status");
+  if (!el || focus?.type !== "building") return;
+  const parts = productionMarkup(
+    session.world,
+    focus.id,
+    !speed || !!modal || document.hidden,
+  );
+  if (!parts) return;
+  setMarkup(
+    el,
+    `<section class="production-status" aria-label="Production and research"><div id="welcome-active"></div><div id="welcome-queue" tabindex="-1"></div><div id="research-active"></div></section>`,
+  );
+  setMarkup($("welcome-active"), parts.welcome);
+  const queue = $("welcome-queue");
+  const oldList = queue.querySelector("ol"),
+    scroll = oldList?.scrollTop ?? 0;
+  const focused = document.activeElement === oldList;
+  setMarkup(queue, parts.queue);
+  const list = queue.querySelector("ol");
+  if (list) list.scrollTop = scroll;
+  if (focused && document.activeElement !== list)
+    (list ?? queue).focus({ preventScroll: true });
+  setMarkup($("research-active"), parts.research);
 }
 function renderUi() {
   const w = session.world;
@@ -520,6 +561,7 @@ function replaceWorld(w: World) {
 }
 function closeModal() {
   modal = "";
+  renderProduction();
   $("modal-layer").hidden = true;
   $("modal-layer").innerHTML = "";
   lastFrame = performance.now();
@@ -561,6 +603,7 @@ function renderResearch() {
 }
 function openModal(type: string) {
   modal = type;
+  renderProduction();
   if (type === "research") {
     renderResearch();
     return;
@@ -734,6 +777,7 @@ function setSpeed(n: number) {
     );
   $("pause").innerHTML = icon(n ? "pause" : "play", 16);
   $("pause").setAttribute("aria-label", n ? "Pause" : "Resume");
+  renderProduction();
 }
 $("pause").onclick = () => setSpeed(speed ? 0 : 1);
 document
@@ -863,6 +907,7 @@ window.addEventListener("beforeunload", () => save());
 document.addEventListener("visibilitychange", () => {
   lastFrame = performance.now();
   if (document.hidden) save();
+  renderProduction();
 });
 function frame(now: number) {
   requestAnimationFrame(frame);

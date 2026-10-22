@@ -169,6 +169,11 @@ export const TECHS: Record<
     building: "workshop",
   },
 };
+export const RECRUIT_COST = 35;
+export const RECRUIT_DURATION = 12;
+/** Total paid orders, including the active welcome. */
+export const RECRUIT_QUEUE_LIMIT = 20;
+
 export const RESOURCE_LABEL: Record<Resource, string> = {
   wood: "Timber",
   food: "Food",
