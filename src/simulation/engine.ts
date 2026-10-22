@@ -31,6 +31,7 @@ import type {
   Villager,
   World,
 } from "./types";
+import { recordWork } from "./work-activity";
 export const STEP = 0.25;
 const names = [
   "Haru",
@@ -747,6 +748,12 @@ function updateVillager(w: World, v: Villager) {
         deliver(w, v);
         return;
       }
+      recordWork(
+        w,
+        v,
+        n.kind === "wood" ? "chop" : n.kind === "stone" ? "mine" : "pick",
+        n,
+      );
       v.action += STEP * rate;
       if (v.action >= 0.8) {
         v.action -= 0.8;
@@ -778,13 +785,17 @@ function updateVillager(w: World, v: Villager) {
           deliver(w, v);
           return;
         }
+        recordWork(w, v, "tend", b);
         v.action += STEP * rate * (w.techs.includes("agriculture") ? 1.4 : 1);
         if (v.action >= 1.2) {
           v.action -= 1.2;
           v.cargo ??= { kind: "food", amount: 0 };
           v.cargo.amount++;
         }
-      } else w.stock.insight += STEP * 0.12;
+      } else {
+        recordWork(w, v, "craft", b);
+        w.stock.insight += STEP * 0.12;
+      }
       return;
     }
   }

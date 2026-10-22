@@ -45,6 +45,8 @@ function sceneFixture() {
       grid: new THREE.Group(),
       plannedPaths: new PlannedPaths(),
       resourcePulses: new ResourcePulses(),
+      gatherPoses: new Map(),
+      gatherRigs: new Map(),
       models: new Map(),
       previousPositions: new Map(),
       walkPoses: new Map(),
