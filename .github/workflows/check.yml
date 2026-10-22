@@ -1,7 +1,31 @@
 name: Desktop checks
-on: [push, pull_request]
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  latest:
+    runs-on: ubuntu-24.04
+    outputs:
+      current: ${{ steps.head.outputs.current }}
+    steps:
+      # Concurrency order is not guaranteed; skip builds for a stale queued push.
+      - name: Check current main head
+        id: head
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          head_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')
+          if [[ "$head_sha" == "$GITHUB_SHA" ]]; then
+            echo "current=true" >> "$GITHUB_OUTPUT"
+          fi
   build:
+    needs: latest
+    if: needs.latest.outputs.current == 'true'
     strategy:
       fail-fast: false
       matrix:
