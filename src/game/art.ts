@@ -53,13 +53,17 @@ const wood = "#8c6347",
   roofColor = "#566665";
 /** Curved hip roof: the middle ring gives the eaves a subtle upturn. */
 function roof(
-  g: THREE.Group,
+  parent: THREE.Group,
   w: number,
   d: number,
   y: number,
   color = roofColor,
   height = 0.9,
 ) {
+  // Keep the surface, ridge and tile details together, including nested hall roofs.
+  const g = new THREE.Group();
+  g.name = "roof";
+  parent.add(g);
   const vertices: number[] = [],
     indices: number[] = [];
   for (const [scale, dy] of [
@@ -227,6 +231,13 @@ export function buildingModel(kind: BuildingKind): THREE.Group {
       box(g, "#c6a478", 0, 0.2, -0.36 + i * 0.24, 0.98, 0.05, 0.19);
   }
   return g;
+}
+/** Apply construction only to placed models; previews keep their complete roofs. */
+export function setBuildingProgress(g: THREE.Group, progress: number) {
+  g.scale.y = 0.15 + progress * 0.85;
+  g.traverse((part) => {
+    if (part.name === "roof") part.visible = progress >= 1;
+  });
 }
 export function treeModel(variant: number) {
   const g = new THREE.Group(),
