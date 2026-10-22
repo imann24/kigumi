@@ -7,6 +7,7 @@ import {
 } from "../src/game/art";
 import { VillageScene } from "../src/game/scene";
 import { PlannedPaths } from "../src/game/planned-paths";
+import { ResourcePulses } from "../src/game/resource-pulses";
 import { BUILDINGS } from "../src/simulation/catalog";
 import { createWorld } from "../src/simulation/engine";
 import { dimensions } from "../src/simulation/grid";
@@ -43,6 +44,7 @@ function sceneFixture() {
       paths: new THREE.Group(),
       grid: new THREE.Group(),
       plannedPaths: new PlannedPaths(),
+      resourcePulses: new ResourcePulses(),
       models: new Map(),
       previousPositions: new Map(),
       walkPoses: new Map(),
