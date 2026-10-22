@@ -5,6 +5,7 @@ import { cell, dimensions } from "../simulation/grid";
 import type { Point, World } from "../simulation/types";
 import {
   box,
+  berryBushModel,
   buildingModel,
   disposeGroup,
   material,
@@ -356,25 +357,11 @@ export class VillageScene {
       if (!this.models.has(key)) {
         let g: THREE.Group;
         if (n.kind === "wood") g = treeModel(n.variant);
+        else if (n.kind === "food") g = berryBushModel();
         else {
           g = new THREE.Group();
-          if (n.kind === "stone") {
-            stone(g, "#969e91", 0, 0.36, 0, 0.6, 0.58, 0.51);
-            stone(g, "#b5b6a3", 0.28, 0.22, 0.3, 0.35, 0.3, 0.35);
-          } else {
-            stone(g, "#719269", 0, 0.35, 0, 0.49, 0.47, 0.48);
-            for (let i = 0; i < 5; i++)
-              stone(
-                g,
-                "#be775b",
-                Math.sin(i * 2) * 0.35,
-                0.5,
-                Math.cos(i * 2) * 0.3,
-                0.07,
-                0.07,
-                0.07,
-              );
-          }
+          stone(g, "#969e91", 0, 0.36, 0, 0.6, 0.58, 0.51);
+          stone(g, "#b5b6a3", 0.28, 0.22, 0.3, 0.35, 0.3, 0.35);
         }
         g.position.set(n.x + 0.5, 0, n.z + 0.5);
         g.rotation.y = n.variant * 6;
