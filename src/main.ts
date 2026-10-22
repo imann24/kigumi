@@ -84,7 +84,7 @@ app.innerHTML = `
   <details class="journal chrome-panel" data-panel="journal"><summary>${icon("leaf", 16)} Progress & research</summary><div class="panel-content"><div id="milestones"></div><button id="research" class="text-button">Knowledge tree ${icon("arrow", 15)}</button></div></details>
   <details id="inspector-panel" class="inspector-panel chrome-panel" hidden open><summary>Selection</summary><aside id="inspector" class="inspector"></aside></details>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <div id="build-hint" class="build-hint" hidden></div>
+  <div id="build-hint" class="build-hint" hidden><div id="build-description"></div><output id="build-facing" aria-live="polite"></output><button id="rotate-building" title="Rotate building 90° [R]" aria-label="Rotate building 90 degrees">↶ Rotate 90° <kbd>R</kbd></button><span><kbd>Esc</kbd> Cancel</span></div>
   <div id="selection-box" class="selection-box" hidden></div>
   <details class="map-panel chrome-panel" data-panel="map" open><summary>${icon("flag", 13)} Map</summary><div class="panel-content"><button id="home" class="map-center" title="Center on the village [Home]">Center village ↗</button><canvas id="minimap" width="160" height="128" aria-label="Minimap; click to move camera"></canvas><div class="map-footer"><span class="live-dot"></span><span id="save-status">Saved on this device</span></div></div></details>
   <details id="build-panel" class="build-panel chrome-panel" data-panel="build" open><summary>${icon("house", 17)} Build <kbd>B</kbd></summary><div class="build-body"><div class="build-heading"><div class="build-tabs"><button class="active" data-category="all">Homes & community</button><button data-category="production">Production</button><button data-category="paths">Paths & crossings</button></div><button id="grid" title="Show grid [G]">${icon("plus", 14)} Grid <kbd>G</kbd></button></div><div id="build-cards" class="build-cards"></div></div></details>
@@ -209,6 +209,7 @@ function renderCards() {
         return;
       }
       build = build === kind ? null : kind;
+      // Each new choice starts facing south; repeated placements retain direction.
       rotation = 0;
       lastPaint = "";
       renderCards();
@@ -364,25 +365,54 @@ function renderUi() {
 function updatePreview() {
   const hint = $("build-hint");
   hint.hidden = !build && !erasing;
-  if (erasing && pointer) {
-    scene.preview("road", pointer, 0, false);
-    hint.innerHTML = `${icon("close", 18)} <b>Lift a path</b><span>Click or drag to remove paths</span><kbd>Esc</kbd> Cancel`;
+  const rotatable = !!build && BUILDINGS[build].category !== "paths";
+  $("rotate-building").hidden = !rotatable;
+  $("build-facing").hidden = !rotatable;
+  if (rotatable) {
+    const facing = `Facing ${["South", "East", "North", "West"][rotation]} · ${dimensions({ kind: build!, rotation }).join(" × ")}`;
+    if ($("build-facing").textContent !== facing)
+      $("build-facing").textContent = facing;
+  }
+  hint.classList.remove("invalid");
+  if (erasing) {
+    scene.preview(pointer ? "road" : null, pointer ?? undefined, 0, false);
+    setMarkup(
+      $("build-description"),
+      `${icon("close", 18)} <b>Lift a path</b><span class="placement-message">Click or drag to remove paths</span>`,
+    );
     return;
   }
-  if (build && pointer) {
-    const error = placementError(
-      session.world,
-      build,
-      Math.floor(pointer.x),
-      Math.floor(pointer.z),
+  if (build) {
+    const error = pointer
+      ? placementError(
+          session.world,
+          build,
+          Math.floor(pointer.x),
+          Math.floor(pointer.z),
+          rotation,
+        )
+      : null;
+    scene.preview(
+      pointer ? build : null,
+      pointer ?? undefined,
       rotation,
+      !error,
     );
-    scene.preview(build, pointer, rotation, !error);
-    hint.innerHTML = `${icon(build, 18)} <b>${BUILDINGS[build].name}</b><span>${error ?? "Click to place"}</span><kbd>R</kbd> Rotate <kbd>Esc</kbd> Cancel`;
+    setMarkup(
+      $("build-description"),
+      `${icon(build, 18)} <b>${BUILDINGS[build].name}</b><span class="placement-message">${error ?? (pointer ? "Click to place" : "Point at the island to place")}</span>`,
+    );
     hint.classList.toggle("invalid", !!error);
   } else scene.preview(null);
   if (!build && grid) scene.showGrid(true);
 }
+function rotateBuilding() {
+  if (!build || BUILDINGS[build].category === "paths" || modal) return;
+  rotation = (rotation + 1) % 4;
+  lastPaint = "";
+  updatePreview();
+}
+$("rotate-building").onclick = rotateBuilding;
 function place() {
   if ((!build && !erasing) || !pointer) return;
   const x = Math.floor(pointer.x),
@@ -539,7 +569,7 @@ function openModal(type: string) {
     modalShell(
       "A village, at your own pace.",
       "There is no finish line. Find a rhythm, make connections, and build somewhere worth belonging.",
-      `<div class="guide-grid"><article>${icon("people", 27)}<h3>Give a little direction</h3><p>Click a villager or drag a selection box. Shift adds to your selection. Right-click resources to gather, unfinished buildings to construct, paddies or workshops to assign work, and ground to move.</p></article><article>${icon("road", 27)}<h3>Make every journey count</h3><p>Workers carry resources to the nearest reachable hall or storehouse. Paths make walking 45% faster. Keep routes open around buildings. Drag to lay paths; build bridges tile by tile across water. Use Lift a path to rearrange routes.</p></article><article>${icon("house", 27)}<h3>Grow thoughtfully</h3><p>Select a building below, then place it on the grid. R rotates; Escape cancels. Selected villagers build it, or two nearby auto-workers help. Homes increase capacity. Welcome villagers for 35 food.</p></article><article>${icon("heart", 27)}<h3>Leave room for togetherness</h3><p>Villagers meet as their paths cross. Shared traditions unlock tea houses and shrines, improving nearby morale and bonds. Food shortages gently reduce morale and work speed; nobody dies.</p></article></div><div class="shortcut-list"><span><kbd>Space</kbd> Pause</span><span><kbd>WASD / arrows</kbd> Pan</span><span><kbd>Q / E</kbd> Rotate</span><span><kbd>Middle drag</kbd> Orbit</span><span><kbd>Scroll</kbd> Zoom</span><span><kbd>B</kbd> Build panel</span><span><kbd>H</kbd> Hide interface</span><span><kbd>G</kbd> Grid</span><span><kbd>I</kbd> Select idle</span><span><kbd>Home</kbd> Center</span><span><kbd>1 / 2 / 4</kbd> Speed</span><span><kbd>Ctrl / Cmd + S</kbd> Save</span></div><p class="small-note">Auto-work finds a new job when a resource is exhausted or construction finishes. Explicit move orders end in standing by. Your village pauses while a menu is open or the game is closed.</p>`,
+      `<div class="guide-grid"><article>${icon("people", 27)}<h3>Give a little direction</h3><p>Click a villager or drag a selection box. Shift adds to your selection. Right-click resources to gather, unfinished buildings to construct, paddies or workshops to assign work, and ground to move.</p></article><article>${icon("road", 27)}<h3>Make every journey count</h3><p>Workers carry resources to the nearest reachable hall or storehouse. Paths make walking 45% faster. Keep routes open around buildings. Drag to lay paths; build bridges tile by tile across water. Use Lift a path to rearrange routes.</p></article><article>${icon("house", 27)}<h3>Grow thoughtfully</h3><p>Select a building below, then place it on the grid. R or Rotate 90° cycles through four directions; Escape cancels. A new building choice starts facing South. Selected villagers build it, or two nearby auto-workers help. Homes increase capacity. Welcome villagers for 35 food.</p></article><article>${icon("heart", 27)}<h3>Leave room for togetherness</h3><p>Villagers meet as their paths cross. Shared traditions unlock tea houses and shrines, improving nearby morale and bonds. Food shortages gently reduce morale and work speed; nobody dies.</p></article></div><div class="shortcut-list"><span><kbd>Space</kbd> Pause</span><span><kbd>WASD / arrows</kbd> Pan</span><span><kbd>Q / E</kbd> Rotate</span><span><kbd>Middle drag</kbd> Orbit</span><span><kbd>Scroll</kbd> Zoom</span><span><kbd>B</kbd> Build panel</span><span><kbd>H</kbd> Hide interface</span><span><kbd>G</kbd> Grid</span><span><kbd>I</kbd> Select idle</span><span><kbd>Home</kbd> Center</span><span><kbd>1 / 2 / 4</kbd> Speed</span><span><kbd>Ctrl / Cmd + S</kbd> Save</span></div><p class="small-note">Auto-work finds a new job when a resource is exhausted or construction finishes. Explicit move orders end in standing by. Your village pauses while a menu is open or the game is closed.</p>`,
     );
   } else if (type === "settings") {
     modalShell(
@@ -811,9 +841,9 @@ window.addEventListener("keydown", (e) => {
     const panel = $<HTMLDetailsElement>("build-panel");
     panel.open = !panel.open;
   }
-  if (e.code === "KeyR" && build) {
-    rotation = (rotation + 1) % 2;
-    updatePreview();
+  if (e.code === "KeyR" && build && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    e.preventDefault();
+    rotateBuilding();
   }
   if (e.code === "KeyG") $("grid").click();
   if (e.code === "Home") scene.home();

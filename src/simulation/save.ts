@@ -90,7 +90,7 @@ export function deserialize(raw: string): World {
       !Object.hasOwn(BUILDINGS, b.kind) ||
       b.kind === "road" ||
       b.kind === "bridge" ||
-      !integer(b.rotation, 0, 1) ||
+      !integer(b.rotation, 0, 3) ||
       !finite(b.progress, 0, 1) ||
       !integer(b.x) ||
       !integer(b.z)

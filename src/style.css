@@ -767,15 +767,23 @@ footer button:hover:not(:disabled) {
   font-size: 10px;
   box-shadow: var(--shadow);
   white-space: nowrap;
-  pointer-events: none;
+  pointer-events: auto;
 }
 
-.build-hint span {
+.build-hint .placement-message {
   color: var(--muted);
   margin: 0 10px;
 }
-.build-hint.invalid span {
+.build-hint.invalid .placement-message {
   color: #934a32;
+}
+.build-hint button {
+  border: 1px solid var(--green);
+  border-radius: 4px;
+  padding: 6px 8px;
+}
+.build-hint output {
+  color: var(--muted);
 }
 .build-hint[hidden] {
   display: none;

@@ -6,6 +6,7 @@ export interface Point {
 export interface Building extends Point {
   id: number;
   kind: BuildingKind;
+  /** Quarter-turns around +Y: 0 south (+Z), 1 east (+X), 2 north, 3 west. */
   rotation: number;
   progress: number;
 }

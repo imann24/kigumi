@@ -185,6 +185,8 @@ export function placementError(
   z: number,
   rotation: number,
 ): string | null {
+  if (!Number.isInteger(rotation) || rotation < 0 || rotation > 3)
+    return "Choose one of the four building directions.";
   const def = BUILDINGS[kind];
   if (def.tech && !w.techs.includes(def.tech))
     return `Research ${TECHS[def.tech].name} first.`;
@@ -315,7 +317,7 @@ export function applyCommand(w: World, c: Command): CommandResult {
       kind: c.kind,
       x: c.x,
       z: c.z,
-      rotation: c.rotation % 2,
+      rotation: c.rotation,
       progress: 0,
     };
     w.buildings.push(b);
