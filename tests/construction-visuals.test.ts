@@ -46,6 +46,8 @@ function sceneFixture() {
       plannedPaths: new PlannedPaths(),
       resourcePulses: new ResourcePulses(),
       cursor: { clear: vi.fn() },
+      gatherPoses: new Map(),
+      gatherRigs: new Map(),
       models: new Map(),
       previousPositions: new Map(),
       walkPoses: new Map(),

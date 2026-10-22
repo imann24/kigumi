@@ -19,6 +19,15 @@ import {
 } from "./art";
 import { advanceWalk, interpolatePosition, type WalkPose } from "./walking";
 import { ActionCursorController } from "./action-cursor";
+import { workingActivity } from "../simulation/work-activity";
+import {
+  advanceGather,
+  applyGatherPose,
+  createGatherPose,
+  gatheringRig,
+  type GatherPose,
+  type GatheringRig,
+} from "./gathering";
 import { panCamera } from "./camera-pan";
 import { PlannedPaths } from "./planned-paths";
 import { paddyHeight } from "./surfaces";
@@ -39,6 +48,8 @@ export class VillageScene {
   private resourcePulses = new ResourcePulses();
   private previousPositions = new Map<number, Point>();
   private walkPoses = new Map<number, WalkPose>();
+  private gatherPoses = new Map<number, GatherPose>();
+  private gatherRigs = new Map<number, GatheringRig>();
   private models = new Map<string, THREE.Group>();
   private ray = new THREE.Raycaster();
   private pointer = new THREE.Vector2();
@@ -209,6 +220,8 @@ export class VillageScene {
     this.models.clear();
     this.previousPositions.clear();
     this.walkPoses.clear();
+    this.gatherPoses.clear();
+    this.gatherRigs.clear();
     for (const group of [
       this.entities,
       this.paths,
@@ -409,6 +422,8 @@ export class VillageScene {
       let g = this.models.get(key);
       if (!g) {
         g = villagerModel(v.id);
+        this.gatherPoses.set(v.id, createGatherPose(v.id));
+        this.gatherRigs.set(v.id, gatheringRig(g));
         this.walkPoses.set(v.id, { phase: v.id % 6, weight: 0, heading: 0 });
         g.position.set(v.x, 0, v.z);
         g.userData = { type: "villager", id: v.id };
@@ -423,6 +438,12 @@ export class VillageScene {
         this.entities.remove(g);
         disposeGroup(g);
         this.models.delete(key);
+        if (g.userData.type === "villager") {
+          this.walkPoses.delete(g.userData.id);
+          this.previousPositions.delete(g.userData.id);
+          this.gatherPoses.delete(g.userData.id);
+          this.gatherRigs.delete(g.userData.id);
+        }
       }
     if (
       this.selectedObject &&
@@ -605,6 +626,8 @@ export class VillageScene {
           alpha,
         );
         const pose = this.walkPoses.get(v.id)!;
+        const moving =
+          Math.hypot(p.x - g.position.x, p.z - g.position.z) > 0.000001;
         advanceWalk(
           pose,
           p.x - g.position.x,
@@ -613,12 +636,21 @@ export class VillageScene {
         );
         g.position.x = p.x;
         g.position.z = p.z;
+        const gather = this.gatherPoses.get(v.id)!;
+        advanceGather(
+          gather,
+          moving ? null : workingActivity(this.world!, v),
+          pose,
+          p,
+          simulationDelta,
+        );
         g.rotation.y = pose.heading;
         const stride = Math.sin(pose.phase) * pose.weight;
         g.getObjectByName("left-leg")!.rotation.x = stride * 0.48;
         g.getObjectByName("right-leg")!.rotation.x = -stride * 0.48;
         g.getObjectByName("left-arm")!.rotation.x = -stride * 0.32;
         g.getObjectByName("right-arm")!.rotation.x = stride * 0.32;
+        applyGatherPose(this.gatherRigs.get(v.id)!, gather);
         g.position.y =
           paddyHeight(this.world!, p) +
           (1 - Math.cos(pose.phase * 2)) * 0.012 * pose.weight;

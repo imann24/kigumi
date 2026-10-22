@@ -339,19 +339,23 @@ export function berryBushModel() {
 export function villagerModel(index: number) {
   const g = new THREE.Group(),
     colors = ["#b66c51", "#748f91", "#ccad6b", "#6e8572", "#a28a97"];
+  const upper = new THREE.Group();
+  upper.name = "upper-body";
+  upper.position.y = 0.235;
+  g.add(upper);
   const body = box(
-    g,
+    upper,
     colors[index % colors.length],
     0,
-    0.38,
+    0.145,
     0,
     0.23,
     0.36,
     0.18,
   );
   body.rotation.z = 0.02;
-  stone(g, "#ddba91", 0, 0.67, 0, 0.13, 0.14, 0.13);
-  box(g, "#514536", 0, 0.77, -0.015, 0.22, 0.09, 0.2);
+  stone(upper, "#ddba91", 0, 0.435, 0, 0.13, 0.14, 0.13);
+  box(upper, "#514536", 0, 0.535, -0.015, 0.22, 0.09, 0.2);
   for (const side of [-1, 1]) {
     const leg = new THREE.Group();
     leg.name = side < 0 ? "left-leg" : "right-leg";
@@ -360,19 +364,36 @@ export function villagerModel(index: number) {
     g.add(leg);
     const arm = new THREE.Group();
     arm.name = side < 0 ? "left-arm" : "right-arm";
-    arm.position.set(side * 0.16, 0.545, 0);
+    arm.position.set(side * 0.16, 0.31, 0);
     arm.rotation.z = side * 0.16;
     box(arm, colors[index % colors.length], 0, -0.145, 0, 0.07, 0.29, 0.08);
-    g.add(arm);
+    upper.add(arm);
+    if (side > 0) {
+      for (const kind of ["axe", "pickaxe", "mallet"]) {
+        const tool = new THREE.Group();
+        tool.name = kind;
+        tool.position.y = -0.27;
+        // Handle extends beyond the hand in the arm direction.
+        box(tool, wood, 0, -0.12, 0, 0.045, 0.42, 0.045);
+        if (kind === "axe")
+          box(tool, "#c4cbd0", 0, -0.31, 0.06, 0.08, 0.16, 0.25);
+        else if (kind === "pickaxe") {
+          const head = box(tool, "#a7b6bd", 0, -0.31, 0, 0.065, 0.07, 0.43);
+          head.rotation.x = 0.18;
+        } else box(tool, "#a47b50", 0, -0.23, 0, 0.13, 0.14, 0.24);
+        tool.visible = false;
+        arm.add(tool);
+      }
+    }
   }
   const hat = new THREE.Mesh(
     new THREE.ConeGeometry(0.25, 0.13, 10),
     material("#c8b17c"),
   );
-  hat.position.y = 0.87;
+  hat.position.y = 0.635;
   hat.name = "hat";
-  g.add(hat);
-  const cargo = box(g, "#b99a68", 0, 0.4, -0.2, 0.25, 0.27, 0.2);
+  upper.add(hat);
+  const cargo = box(upper, "#b99a68", 0, 0.165, -0.2, 0.25, 0.27, 0.2);
   cargo.name = "cargo";
   cargo.visible = false;
   return g;
