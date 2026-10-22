@@ -50,12 +50,16 @@ export class PanGesture {
   }
 }
 
-export function isUiControl(target: EventTarget | null) {
-  return (
-    target instanceof Element &&
-    !!target.closest(
-      'input, textarea, select, button, a[href], summary, [contenteditable]:not([contenteditable="false"]), [role="button"], [role="textbox"], [role="slider"], [role="combobox"]',
-    )
+export function isUiControl(
+  target: EventTarget | null,
+  worldCanvas?: HTMLCanvasElement,
+) {
+  if (!(target instanceof Element)) return false;
+  // Body and the world remain game keyboard surfaces even if focusable. Other
+  // tabindex regions include scroll containers and programmatic focus fallbacks.
+  if (target === worldCanvas || target.tagName === "BODY") return false;
+  return !!target.closest(
+    'input, textarea, select, button, a[href], summary, audio[controls], video[controls], [tabindex], [contenteditable]:not([contenteditable="false"]), [role="button"], [role="textbox"], [role="slider"], [role="combobox"]',
   );
 }
 
@@ -104,7 +108,7 @@ export function installSpacePan(
       if (
         e.code !== "Space" ||
         !options.enabled() ||
-        isUiControl(e.target) ||
+        isUiControl(e.target, canvas) ||
         e.ctrlKey ||
         e.metaKey ||
         e.altKey
@@ -122,8 +126,9 @@ export function installSpacePan(
       if (e.code !== "Space" || !gesture.space) return;
       const tap = gesture.releaseSpace();
       cursor();
-      if (!isUiControl(e.target)) e.preventDefault();
-      if (tap && options.enabled() && !isUiControl(e.target)) options.tap();
+      if (!isUiControl(e.target, canvas)) e.preventDefault();
+      if (tap && options.enabled() && !isUiControl(e.target, canvas))
+        options.tap();
     },
     true,
   );
@@ -243,7 +248,7 @@ export function installSpacePan(
     cancel();
   });
   window.addEventListener("focusin", (e) => {
-    if (isUiControl(e.target)) cancel();
+    if (isUiControl(e.target, canvas)) cancel();
   });
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
