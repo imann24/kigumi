@@ -60,6 +60,10 @@ function fixture(kind: WorkKind = "chop") {
       order: { type: "gather", target: w.nodes[0].id },
     });
   }
+  if (kind === "tend") {
+    v.x = 6.5;
+    v.z = 6.5;
+  }
   invalidateNavigation(w);
   return { w, v };
 }

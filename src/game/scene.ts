@@ -27,6 +27,7 @@ import {
   type GatheringRig,
 } from "./gathering";
 import { PlannedPaths } from "./planned-paths";
+import { paddyHeight } from "./surfaces";
 import { ResourcePulses } from "./resource-pulses";
 export type Hit = { type: "villager" | "building" | "resource"; id: number };
 export class VillageScene {
@@ -275,6 +276,7 @@ export class VillageScene {
     // Clear the road surface (0.08) and raised bridge planks (0.225).
     // Depth testing still lets feet, buildings and foliage cover the markings.
     const w = this.world;
+    if (w && paddyHeight(w, p)) return paddyHeight(w, p) + 0.025;
     return w?.bridges.includes(cell(w, Math.floor(p.x), Math.floor(p.z)))
       ? 0.245
       : 0.1;
@@ -599,7 +601,9 @@ export class VillageScene {
         g.getObjectByName("left-arm")!.rotation.x = -stride * 0.32;
         g.getObjectByName("right-arm")!.rotation.x = stride * 0.32;
         applyGatherPose(this.gatherRigs.get(v.id)!, gather);
-        g.position.y = (1 - Math.cos(pose.phase * 2)) * 0.012 * pose.weight;
+        g.position.y =
+          paddyHeight(this.world!, p) +
+          (1 - Math.cos(pose.phase * 2)) * 0.012 * pose.weight;
         g.rotation.z = stride * 0.018;
       }
     }
