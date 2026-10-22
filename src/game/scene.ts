@@ -17,11 +17,14 @@ import {
   villagerSelectionRing,
 } from "./art";
 import { advanceWalk, interpolatePosition, type WalkPose } from "./walking";
+import { ActionCursorController } from "./action-cursor";
 import { PlannedPaths } from "./planned-paths";
 import { ResourcePulses } from "./resource-pulses";
 export type Hit = { type: "villager" | "building" | "resource"; id: number };
 export class VillageScene {
   renderer: THREE.WebGLRenderer;
+  readonly cursor: ActionCursorController;
+  private listeners = new AbortController();
   scene = new THREE.Scene();
   camera: THREE.OrthographicCamera;
   controls: OrbitControls;
@@ -52,6 +55,7 @@ export class VillageScene {
   private petals: THREE.InstancedMesh;
   private temp = new THREE.Object3D();
   constructor(public canvas: HTMLCanvasElement) {
+    this.cursor = new ActionCursorController(canvas);
     this.renderer = new THREE.WebGLRenderer({
       canvas,
       antialias: true,
@@ -125,17 +129,29 @@ export class VillageScene {
       35,
     );
     this.scene.add(this.petals);
-    window.addEventListener("resize", () => this.resize());
-    window.addEventListener("keydown", (e) => {
-      if (
-        !(e.target instanceof HTMLInputElement) &&
-        !(e.target instanceof HTMLSelectElement)
-      )
-        this.keys.add(e.code);
-    });
-    window.addEventListener("keyup", (e) => this.keys.delete(e.code));
-    window.addEventListener("blur", () => this.keys.clear());
+    const options = { signal: this.listeners.signal };
+    window.addEventListener("resize", () => this.resize(), options);
+    window.addEventListener(
+      "keydown",
+      (e) => {
+        if (
+          !(e.target instanceof HTMLInputElement) &&
+          !(e.target instanceof HTMLSelectElement)
+        )
+          this.keys.add(e.code);
+      },
+      options,
+    );
+    window.addEventListener("keyup", (e) => this.keys.delete(e.code), options);
+    window.addEventListener("blur", () => this.keys.clear(), options);
     this.resize();
+  }
+  dispose() {
+    this.cursor.dispose();
+    this.listeners.abort();
+    this.controls.dispose();
+    disposeGroup(this.scene);
+    this.renderer.dispose();
   }
   resize() {
     const w = this.canvas.clientWidth,
@@ -149,6 +165,7 @@ export class VillageScene {
     this.camera.updateProjectionMatrix();
   }
   setWorld(w: World) {
+    this.cursor.clear();
     this.world = w;
     this.selected.clear();
     this.selectedObject = null;
@@ -604,5 +621,6 @@ export class VillageScene {
     this.petals.instanceMatrix.needsUpdate = true;
     this.controls.update();
     this.renderer.render(this.scene, this.camera);
+    this.cursor.update(now);
   }
 }

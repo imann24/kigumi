@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import "./style.css";
 import {
   BUILDINGS,
@@ -23,8 +24,13 @@ import {
   serialize,
 } from "./simulation/save";
 import { LocalSession } from "./simulation/session";
-import type { Command, Order, Point, World } from "./simulation/types";
+import type { Command, Point, World } from "./simulation/types";
 import { VillageScene, type Hit } from "./game/scene";
+import {
+  contextualCursor,
+  contextualOrder,
+  type ActionCursor,
+} from "./game/contextual-actions";
 import { thumbnails } from "./game/thumbnails";
 import { icon } from "./icons";
 const $ = <T extends HTMLElement = HTMLElement>(id: string) =>
@@ -162,6 +168,8 @@ function dispatch(c: Command) {
     scene.sync(session.world);
     renderUi();
   }
+  cursorCache = null;
+  scene.cursor.refresh();
   return result.ok;
 }
 function costMarkup(cost: Partial<Record<Resource, number>>) {
@@ -225,6 +233,7 @@ function select(ids: number[], hit: Hit | null = null) {
   panel.open = true;
   panel.querySelector("summary")!.textContent = "Selection";
   renderInspector();
+  scene.cursor.refresh();
 }
 function renderInspector() {
   const w = session.world,
@@ -363,6 +372,7 @@ function renderUi() {
   if (modal === "research") renderResearch();
 }
 function updatePreview() {
+  scene.cursor.refresh();
   const hint = $("build-hint");
   hint.hidden = !build && !erasing;
   const rotatable = !!build && BUILDINGS[build].category !== "paths";
@@ -530,6 +540,7 @@ function modalShell(title: string, subtitle: string, body: string) {
     `<section class="modal" role="dialog" aria-modal="true" aria-label="${title}"><button id="close-modal" class="modal-close" aria-label="Close">${icon("close")}</button><span class="eyebrow">FIELD NOTES</span><h2>${title}</h2><p class="modal-subtitle">${subtitle}</p>${body}</section>`;
   $("close-modal").onclick = closeModal;
   $("close-modal").focus();
+  scene.cursor.clear();
 }
 function renderResearch() {
   const w = session.world;
@@ -638,6 +649,26 @@ function openModal(type: string) {
 }
 // Interaction stays on the canvas; UI never leaks placement clicks into the world.
 const canvas = $<HTMLCanvasElement>("world");
+// Cache path/placement validation per semantic target and simulation tick. Picking
+// still follows the rendered geometry as the camera or villagers move.
+let cursorCache: {
+  world: World;
+  key: string;
+  value: ActionCursor | null;
+} | null = null;
+scene.cursor.resolve = (x, y) => {
+  if (modal || erasing || drag || (!build && !selected.length)) return null;
+  const w = session.world;
+  const hit = build ? null : scene.hit(x, y);
+  const p = scene.pointerWorld(x, y);
+  const key = `${w.tick}:${selected.join(",")}:${build}:${rotation}:${hit?.type}:${hit?.id}:${p ? `${Math.floor(p.x)},${Math.floor(p.z)}` : ""}`;
+  if (cursorCache?.world === w && cursorCache.key === key)
+    return cursorCache.value;
+  const value = contextualCursor(w, selected, hit, p, build, rotation);
+  cursorCache = { world: w, key, value };
+  return value;
+};
+
 canvas.addEventListener("pointerdown", (e) => {
   if (e.button !== 0 || e.ctrlKey) return;
   pointer = scene.pointerWorld(e.clientX, e.clientY);
@@ -688,15 +719,9 @@ canvas.addEventListener("contextmenu", (e) => {
   }
   const hit = scene.hit(e.clientX, e.clientY),
     p = scene.pointerWorld(e.clientX, e.clientY);
-  let order: Order | undefined;
-  if (hit?.type === "resource") order = { type: "gather", target: hit.id };
-  else if (hit?.type === "building") {
-    const b = session.world.buildings.find((b) => b.id === hit.id)!;
-    if (b.progress < 1) order = { type: "build", target: b.id };
-    else if (b.kind === "farm" || b.kind === "workshop")
-      order = { type: "work", target: b.id };
-    else toast("Right-click a paddy, workshop, resource, or open ground.");
-  } else if (p) order = { type: "move", target: p };
+  const order = contextualOrder(session.world, hit, p);
+  if (!order && hit?.type === "building")
+    toast("Right-click a paddy, workshop, resource, or open ground.");
   if (order && dispatch({ type: "order", ids: selected, order })) {
     if (order.type === "gather") scene.flashResource(order.target);
     toast(
@@ -865,8 +890,9 @@ document.addEventListener("visibilitychange", () => {
   lastFrame = performance.now();
   if (document.hidden) save();
 });
+let animationFrame = 0;
 function frame(now: number) {
-  requestAnimationFrame(frame);
+  animationFrame = requestAnimationFrame(frame);
   const dt = Math.min(0.15, (now - lastFrame) / 1000 || 0);
   lastFrame = now;
   if (!modal && !document.hidden) {
@@ -895,5 +921,10 @@ function frame(now: number) {
 }
 renderCards();
 renderUi();
-requestAnimationFrame(frame);
+animationFrame = requestAnimationFrame(frame);
+if (import.meta.hot)
+  import.meta.hot.dispose(() => {
+    cancelAnimationFrame(animationFrame);
+    scene.dispose();
+  });
 if (loadWarning) toast(loadWarning);

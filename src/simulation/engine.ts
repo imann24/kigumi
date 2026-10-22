@@ -282,6 +282,49 @@ export function researchError(w: World, id: TechId): string | null {
   if (!canAfford(w, t.cost)) return "Not enough resources yet.";
   return null;
 }
+/** Read-only validation shared by command dispatch and contextual feedback. */
+export function orderError(
+  w: World,
+  ids: number[],
+  order: Order,
+): string | null {
+  if (
+    order.type === "move" &&
+    (!Number.isFinite(order.target.x) ||
+      !Number.isFinite(order.target.z) ||
+      !walkable(w, Math.floor(order.target.x), Math.floor(order.target.z)))
+  )
+    return "Choose an open, walkable tile.";
+  if (
+    order.type === "gather" &&
+    !w.nodes.some(
+      (n) => n.id === (order as { target: number }).target && n.amount > 0,
+    )
+  )
+    return "This resource is exhausted.";
+  if (
+    order.type === "build" &&
+    !w.buildings.some(
+      (b) => b.id === (order as { target: number }).target && b.progress < 1,
+    )
+  )
+    return "Choose an unfinished building.";
+  if (order.type === "work") {
+    const target = order.target,
+      b = w.buildings.find((b) => b.id === target);
+    if (!b || b.progress < 1 || !["farm", "workshop"].includes(b.kind))
+      return "Assign workers to a completed paddy or workshop.";
+    const occupied = w.villagers.filter(
+      (v) =>
+        v.order.type === "work" &&
+        v.order.target === target &&
+        !ids.includes(v.id),
+    ).length;
+    if (occupied + ids.length > (b.kind === "farm" ? 3 : 2))
+      return `This ${BUILDINGS[b.kind].name.toLowerCase()} has room for ${b.kind === "farm" ? 3 : 2} workers.`;
+  }
+  return null;
+}
 function assign(v: Villager, order: Order) {
   v.order = structuredClone(order);
   v.task = (
@@ -335,48 +378,8 @@ export function applyCommand(w: World, c: Command): CommandResult {
     return { ok: true };
   }
   if (c.type === "order") {
-    if (
-      c.order.type === "move" &&
-      (!Number.isFinite(c.order.target.x) ||
-        !Number.isFinite(c.order.target.z) ||
-        !walkable(
-          w,
-          Math.floor(c.order.target.x),
-          Math.floor(c.order.target.z),
-        ))
-    )
-      return fail("Choose an open, walkable tile.");
-    if (
-      c.order.type === "gather" &&
-      !w.nodes.some(
-        (n) => n.id === (c.order as { target: number }).target && n.amount > 0,
-      )
-    )
-      return fail("This resource is exhausted.");
-    if (
-      c.order.type === "build" &&
-      !w.buildings.some(
-        (b) =>
-          b.id === (c.order as { target: number }).target && b.progress < 1,
-      )
-    )
-      return fail("Choose an unfinished building.");
-    if (c.order.type === "work") {
-      const target = c.order.target,
-        b = w.buildings.find((b) => b.id === target);
-      if (!b || b.progress < 1 || !["farm", "workshop"].includes(b.kind))
-        return fail("Assign workers to a completed paddy or workshop.");
-      const occupied = w.villagers.filter(
-        (v) =>
-          v.order.type === "work" &&
-          v.order.target === target &&
-          !c.ids.includes(v.id),
-      ).length;
-      if (occupied + c.ids.length > (b.kind === "farm" ? 3 : 2))
-        return fail(
-          `This ${BUILDINGS[b.kind].name.toLowerCase()} has room for ${b.kind === "farm" ? 3 : 2} workers.`,
-        );
-    }
+    const error = orderError(w, c.ids, c.order);
+    if (error) return fail(error);
     for (const v of w.villagers.filter((v) => c.ids.includes(v.id)))
       assign(v, c.order);
     w.scenario.flags.directed = true;
