@@ -1,0 +1,1 @@
+{"identifier":"default","description":"Offline game window; no filesystem or network plugins.","windows":["main"],"permissions":["core:default"]}

@@ -1,0 +1,73 @@
+# Kigumi · 木組み
+
+A peaceful, Age of Empires-inspired village builder in a small Japanese countryside diorama. Three.js renders the world; Tauri packages it as an offline desktop game. No accounts, servers, telemetry, downloaded assets, or LLMs are required to play.
+
+## Play and develop
+
+Requires Node.js 22.12+ (Node 24 recommended). The desktop build also needs Rust and the platform's [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/).
+
+```sh
+npm ci
+npm run dev          # browser development at http://127.0.0.1:1420
+npm run desktop      # native development window
+npm test             # deterministic simulation and save tests
+npm run build        # TypeScript + production frontend
+npm run desktop:build
+```
+
+Dependencies must be installed online once; the built app runs fully offline. Installers/bundles are written under `src-tauri/target/release/bundle/`. On this development machine, a debug macOS app is also available at `src-tauri/target/debug/bundle/macos/Kigumi.app`. macOS has been built and manually play-tested. Windows and Linux share the Tauri configuration and have CI build jobs, but have not been run locally.
+
+## The first village
+
+You begin with ten villagers, a hall, two homes, a storehouse, and a rice paddy. Explore at your own pace. There is no combat, death, timer, or victory condition.
+
+- Select a villager with **left click**, or **drag a box** to select a group. **Shift** adds villagers to a selection.
+- **Right-click** a tree, berry bush, or stone deposit to gather; an unfinished building to construct; a paddy or workshop to work; or open ground to move.
+- Workers carry real loads to a reachable hall or storehouse. Nearby storage reduces travel, and paths make walking **45% faster**. A route must remain open to each building and villager when placing a structure.
+- Choose a building from the bottom bar, then click a valid grid footprint. **R** rotates. **Escape** or right-click cancels. Selected villagers build, or two nearby auto-workers are assigned automatically.
+- Drag to place paths or bridge tiles. **Lift a path** removes paths; bridge removal checks that nobody is stranded. Buildings can be dismantled from their inspector for half their material cost.
+- Homes add six places, or eight after Timber joinery. **Welcome a villager** costs 35 food and takes twelve simulation seconds. The default global cap is **200**, adjustable from 10 to 500 in Settings; 500 is an experimental setting, not a performance target.
+- Auto-work finds new tasks after construction or resource depletion. Explicit movement ends in standing by. The inspector can toggle auto-work, stop a worker, or ask them to find work again.
+- Five technologies unlock workshops, tea houses and shrines, improve carrying capacity, cultivation and craft. Workshops need assigned workers to produce insight; the hall produces it slowly on its own.
+- Food consumption is gentle and never kills residents. Proximity creates acquaintances, friendships and occasional friction. Amenities lift nearby morale and strengthen warm encounters. Town management comes first.
+
+| Control                     | Action                |
+| --------------------------- | --------------------- |
+| WASD / arrows               | Pan                   |
+| Q / E or middle-button drag | Orbit                 |
+| Scroll                      | Zoom                  |
+| Home                        | Center camera         |
+| Space                       | Pause/resume          |
+| 1 / 2 / 4                   | Simulation speed      |
+| G                           | Toggle grid           |
+| I                           | Select idle villagers |
+| Ctrl / Cmd + S              | Manual save           |
+| ?                           | Field guide           |
+
+Menus and hidden windows pause simulation. The village does not simulate while closed. Days are a display clock; seasons and a day/night gameplay cycle are not implemented.
+
+## Saves
+
+Autosaves run every 30 seconds and on hide/close. The manual slot is separate. Saves live in the browser/WebView's local storage on this device; the browser development version and native app have separate storage. Export/import JSON copies from Settings to move a village between devices. Loading validates the format, version, entities, commands, bounds, and numerical state before rendering. Failed local writes show a warning. Back up important villages with an export; clearing application data removes local saves.
+
+## Structure and extension points
+
+- `src/simulation/catalog.ts` — buildings, footprints, costs, research dependencies and tuning.
+- `src/simulation/types.ts` — serializable world, orders and command protocol.
+- `src/simulation/engine.ts` — fixed 250 ms deterministic ticks, resource hauling, construction, research, population and proximity relationships. Seeded randomness; no DOM, Three.js, network, database or wall-clock dependency.
+- `src/simulation/grid.ts` — occupancy cache, A* routes, road travel weights, perimeter access.
+- `src/simulation/session.ts` — authority interface and local implementation. Command and snapshot envelopes are the future multiplayer seam. A real remote authority, authentication, transport, sequencing, reconciliation and synchronization remain to be built.
+- `src/simulation/save.ts` — versioned local and portable saves.
+- `src/game/` — procedural models, terrain, camera, picking, visual interpolation and local building thumbnails.
+- `src/main.ts` / `src/style.css` — desktop game interface and controls.
+- `src-tauri/` — native shell with embedded frontend and a restrictive production CSP.
+
+`World.scenario` currently carries the freeform identifier and milestone flags. Add scenario definitions and objective evaluation above the same command/tick engine; there is no scenario editor or scripted scenario runner yet. The seed varies resource placement and tree appearances on a fixed starting settlement/river layout.
+
+The community model takes conceptual inspiration from the sibling Kinarium simulation (affinity, trust, morale and bounded encounter history). Kigumi does not depend on that repository or include its cloud/LLM stack.
+
+## Validation and current boundaries
+
+The test suite covers deterministic replay, housing/caps, recruitment, placement and access rules, bridge routing, path speed preference, actual harvesting/delivery, renewable farming, worker limits, construction, research dependencies, dismantling, nonlethal scarcity, bounded relationships, save validation/resumption, path removal and a 200-villager simulation soak. Manual play-testing checks the rendered desktop and browser interfaces. CI builds on macOS, Windows and Linux.
+
+This is an initial playable foundation. Art is procedural and intentionally stylized. There is no audio, combat, multiplayer transport, scenario runner, family simulation, terrain editing or production-chain inventory beyond the four shared resources. Performance tuning for very large settlements and installer signing/distribution remain future work.
