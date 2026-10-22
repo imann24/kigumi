@@ -16,6 +16,7 @@ import {
   villagerSelectionRing,
 } from "./art";
 import { advanceWalk, interpolatePosition, type WalkPose } from "./walking";
+import { PlannedPaths } from "./planned-paths";
 export type Hit = { type: "villager" | "building" | "resource"; id: number };
 export class VillageScene {
   renderer: THREE.WebGLRenderer;
@@ -26,6 +27,7 @@ export class VillageScene {
   private entities = new THREE.Group();
   private paths = new THREE.Group();
   private markers = new THREE.Group();
+  private plannedPaths = new PlannedPaths();
   private previousPositions = new Map<number, Point>();
   private walkPoses = new Map<number, WalkPose>();
   private models = new Map<string, THREE.Group>();
@@ -100,6 +102,7 @@ export class VillageScene {
       this.paths,
       this.entities,
       this.markers,
+      this.plannedPaths,
       this.ghost,
     );
     this.grid = new THREE.GridHelper(40, 40, "#aeb49a", "#b5bea5");
@@ -146,6 +149,7 @@ export class VillageScene {
     this.world = w;
     this.selected.clear();
     this.selectedObject = null;
+    this.plannedPaths.clearRoutes();
     this.models.clear();
     this.previousPositions.clear();
     this.walkPoses.clear();
@@ -247,6 +251,7 @@ export class VillageScene {
   select(ids: number[], object: Hit | null = null) {
     this.selected = new Set(ids);
     this.selectedObject = object;
+    this.plannedPaths.clearRoutes();
     this.updateMarkers();
   }
   private markerHeight(p: Point) {
@@ -543,6 +548,12 @@ export class VillageScene {
         g.rotation.z = stride * 0.018;
       }
     }
+    if (this.world)
+      this.plannedPaths.update(
+        this.world,
+        this.selected,
+        (v) => this.models.get(`villager:${v.id}`)?.position ?? v,
+      );
     // Move existing rings instead of rebuilding geometry every animation frame.
     let index = 0;
     for (const v of this.world?.villagers ?? [])
