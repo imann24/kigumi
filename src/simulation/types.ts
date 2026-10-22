@@ -61,6 +61,8 @@ export interface World {
   techs: TechId[];
   research: { id: TechId; progress: number } | null;
   recruit: number | null;
+  /** Paid, identical villager orders waiting behind the active welcome, in FIFO order. */
+  recruitQueue: number;
   relationships: Record<string, Relationship>;
   log: { tick: number; text: string }[];
   config: { maxPopulation: number; foodConsumption: number };
