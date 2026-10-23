@@ -6,6 +6,7 @@ import {
   setBuildingProgress,
 } from "../src/game/art";
 import { VillageScene } from "../src/game/scene";
+import { MapGrid } from "../src/game/map-grid";
 import { ResourcePulses } from "../src/game/resource-pulses";
 import { PlannedPaths } from "../src/game/planned-paths";
 import { BUILDINGS } from "../src/simulation/catalog";
@@ -42,7 +43,7 @@ function sceneFixture() {
       ghost,
       terrain: new THREE.Group(),
       paths: new THREE.Group(),
-      grid: new THREE.Group(),
+      grid: new MapGrid(),
       plannedPaths: new PlannedPaths(),
       resourcePulses: new ResourcePulses(),
       cursor: { clear: vi.fn() },

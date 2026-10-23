@@ -99,7 +99,7 @@ app.innerHTML = `
   <div id="build-hint" class="build-hint" hidden><div id="build-description"></div><output id="build-facing" aria-live="polite"></output><button id="rotate-building" title="Rotate building 90° [R]" aria-label="Rotate building 90 degrees">↶ Rotate 90° <kbd>R</kbd></button><span><kbd>Esc</kbd> Cancel</span></div>
   <div id="selection-box" class="selection-box" hidden></div>
   <details class="map-panel chrome-panel" data-panel="map" open><summary>${icon("flag", 13)} Map</summary><div class="panel-content"><button id="home" class="map-center" title="Center on the village [Home]">Center village ↗</button><canvas id="minimap" width="160" height="128" aria-label="Minimap; click or drag to move camera"></canvas><div class="map-footer"><span class="live-dot"></span><span id="save-status">Saved on this device</span></div></div></details>
-  <details id="build-panel" class="build-panel chrome-panel" data-panel="build" open><summary>${icon("house", 17)} Build <kbd>B</kbd></summary><div class="build-body"><div class="build-heading"><div class="build-tabs"><button class="active" data-category="all">Homes & community</button><button data-category="production">Production</button><button data-category="paths">Paths & crossings</button></div><button id="grid" title="Show grid [G]">${icon("plus", 14)} Grid <kbd>G</kbd></button></div><div id="build-cards" class="build-cards"></div></div></details>
+  <details id="build-panel" class="build-panel chrome-panel" data-panel="build" open><summary>${icon("house", 17)} Build <kbd>B</kbd></summary><div class="build-body"><div class="build-heading"><div class="build-tabs"><button class="active" data-category="all">Homes & community</button><button data-category="production">Production</button><button data-category="paths">Paths & crossings</button></div><button id="grid" aria-pressed="false" title="Show grid [G]">${icon("plus", 14)} Grid <kbd>G</kbd></button></div><div id="build-cards" class="build-cards"></div></div></details>
   <footer><button id="help" title="Controls and field guide [?]">${icon("help", 15)} Help <kbd>?</kbd></button></footer>
   <button id="chrome-toggle" class="square" aria-label="Hide interface" aria-pressed="false" title="Hide interface [H]">${icon("panels", 16)}</button>
   <div id="modal-layer" class="modal-layer" hidden></div><input id="import-file" type="file" accept=".json" hidden/>
@@ -472,7 +472,6 @@ function updatePreview() {
     );
     hint.classList.toggle("invalid", !!error);
   } else scene.preview(null);
-  if (!build && grid) scene.showGrid(true);
 }
 function rotateBuilding() {
   if (!build || BUILDINGS[build].category === "paths" || modal) return;
@@ -869,8 +868,9 @@ $("chrome-toggle").onclick = toggleChrome;
 $("home").onclick = () => scene.home();
 $("grid").onclick = () => {
   grid = !grid;
-  scene.showGrid(grid || !!build);
-  $("grid").classList.toggle("active", grid);
+  scene.showGrid(grid);
+  $("grid").setAttribute("aria-pressed", String(grid));
+  $("grid").title = `${grid ? "Hide" : "Show"} grid [G]`;
 };
 installMinimapPan($<HTMLCanvasElement>("minimap"), {
   size: () => session.world.size,
