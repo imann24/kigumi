@@ -72,8 +72,12 @@ Autosaves run every 30 seconds and on hide/close. The manual slot is separate. S
 - `src/simulation/grid.ts` — occupancy cache, A* routes, road travel weights, perimeter access.
 - `src/simulation/session.ts` — authority interface and local implementation. Command and snapshot envelopes are the future multiplayer seam. A real remote authority, authentication, transport, sequencing, reconciliation and synchronization remain to be built.
 - `src/simulation/save.ts` — versioned local and portable saves.
-- `src/game/` — procedural models, terrain, camera, picking, visual interpolation and local building thumbnails.
-- `src/main.ts` / `src/style.css` — desktop game interface and controls.
+- `src/game/scene.ts` — scene orchestration, camera, picking, selection, Grid and placement previews. Its public interface remains the application's rendering boundary.
+- `src/game/scene-entities.ts` — entity model ownership, synchronization, movement snapshots, walking/gathering poses and resource pulses. Reset restores temporary materials and releases entity geometry before a world is replaced; rendering never advances simulation state.
+- `src/game/terrain.ts` — deterministic ground, water and meadow construction. The scene owns its disposal. Other `src/game/` modules provide procedural art, camera gestures, overlays and local building thumbnails.
+- `src/ui/inspector.ts` — selection and production panels, rendered from current world/selection/pause state. Commands and selection changes return through callbacks to the application; queue updates preserve focus and scroll.
+- `src/ui/minimap.ts` / `src/ui/dom.ts` — minimap drawing and shared DOM markup/escaping helpers. Minimap gestures remain in `src/game/minimap-pan.ts`.
+- `src/main.ts` / `src/style.css` — application state, input and command coordination, save/load, menus, build controls and interface styling.
 - `src-tauri/` — native shell with embedded frontend and a restrictive production CSP.
 
 `World.scenario` currently carries the freeform identifier and milestone flags. Add scenario definitions and objective evaluation above the same command/tick engine; there is no scenario editor or scripted scenario runner yet. The seed varies resource placement and tree appearances on a fixed starting settlement/river layout.
