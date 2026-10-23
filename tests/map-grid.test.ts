@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { describe, expect, it, vi } from "vitest";
 import { MapGrid } from "../src/game/map-grid";
 import { PlannedPaths } from "../src/game/planned-paths";
-import { ResourcePulses } from "../src/game/resource-pulses";
+import { SceneEntities } from "../src/game/scene-entities";
 import { VillageScene } from "../src/game/scene";
 import { createWorld, placementError } from "../src/simulation/engine";
 import { deserialize, serialize } from "../src/simulation/save";
@@ -15,18 +15,12 @@ function fixture() {
     {
       grid,
       ghost,
-      entities: new THREE.Group(),
+      entities: new SceneEntities(),
       paths: new THREE.Group(),
       markers: new THREE.Group(),
       terrain: new THREE.Group(),
       plannedPaths: new PlannedPaths(),
-      resourcePulses: new ResourcePulses(),
       cursor: { clear: vi.fn() },
-      models: new Map(),
-      previousPositions: new Map(),
-      walkPoses: new Map(),
-      gatherPoses: new Map(),
-      gatherRigs: new Map(),
       selected: new Set(),
       temp: new THREE.Object3D(),
       home: vi.fn(),

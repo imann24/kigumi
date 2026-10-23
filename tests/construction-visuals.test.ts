@@ -7,7 +7,7 @@ import {
 } from "../src/game/art";
 import { VillageScene } from "../src/game/scene";
 import { MapGrid } from "../src/game/map-grid";
-import { ResourcePulses } from "../src/game/resource-pulses";
+import { SceneEntities } from "../src/game/scene-entities";
 import { PlannedPaths } from "../src/game/planned-paths";
 import { BUILDINGS } from "../src/simulation/catalog";
 import { createWorld } from "../src/simulation/engine";
@@ -32,7 +32,7 @@ function visibleMeshes(model: THREE.Object3D) {
 }
 // Exercise real scene synchronization/loading without a DOM or GPU renderer.
 function sceneFixture() {
-  const entities = new THREE.Group(),
+  const entities = new SceneEntities(),
     markers = new THREE.Group(),
     ghost = new THREE.Group();
   const scene: VillageScene = Object.assign(
@@ -45,13 +45,7 @@ function sceneFixture() {
       paths: new THREE.Group(),
       grid: new MapGrid(),
       plannedPaths: new PlannedPaths(),
-      resourcePulses: new ResourcePulses(),
       cursor: { clear: vi.fn() },
-      gatherPoses: new Map(),
-      gatherRigs: new Map(),
-      models: new Map(),
-      previousPositions: new Map(),
-      walkPoses: new Map(),
       selected: new Set(),
       selectedObject: null,
       pathSignature: "",

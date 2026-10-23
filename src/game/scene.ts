@@ -4,34 +4,18 @@ import { type BuildingKind } from "../simulation/catalog";
 import { cell, dimensions } from "../simulation/grid";
 import type { Point, World } from "../simulation/types";
 import {
-  box,
-  berryBushModel,
   buildingModel,
   disposeGroup,
-  material,
   selectionFootprint,
   selectionRing,
-  setBuildingProgress,
-  stone,
-  treeModel,
-  villagerModel,
   villagerSelectionRing,
 } from "./art";
-import { advanceWalk, interpolatePosition, type WalkPose } from "./walking";
 import { ActionCursorController } from "./action-cursor";
-import { workingActivity } from "../simulation/work-activity";
-import {
-  advanceGather,
-  applyGatherPose,
-  createGatherPose,
-  gatheringRig,
-  type GatherPose,
-  type GatheringRig,
-} from "./gathering";
+import { SceneEntities } from "./scene-entities";
+import { createTerrain } from "./terrain";
 import { panCamera } from "./camera-pan";
 import { PlannedPaths } from "./planned-paths";
 import { paddyHeight } from "./surfaces";
-import { ResourcePulses } from "./resource-pulses";
 import { MapGrid } from "./map-grid";
 export type Hit = { type: "villager" | "building" | "resource"; id: number };
 export class VillageScene {
@@ -42,16 +26,10 @@ export class VillageScene {
   camera: THREE.OrthographicCamera;
   controls: OrbitControls;
   private terrain = new THREE.Group();
-  private entities = new THREE.Group();
+  private entities = new SceneEntities();
   private paths = new THREE.Group();
   private markers = new THREE.Group();
   private plannedPaths = new PlannedPaths();
-  private resourcePulses = new ResourcePulses();
-  private previousPositions = new Map<number, Point>();
-  private walkPoses = new Map<number, WalkPose>();
-  private gatherPoses = new Map<number, GatherPose>();
-  private gatherRigs = new Map<number, GatheringRig>();
-  private models = new Map<string, THREE.Group>();
   private ray = new THREE.Raycaster();
   private pointer = new THREE.Vector2();
   private plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -65,7 +43,6 @@ export class VillageScene {
   private selected = new Set<number>();
   private selectedObject: Hit | null = null;
   private keys = new Set<string>();
-  private water?: THREE.InstancedMesh;
   private lastTime = 0;
   private petals: THREE.InstancedMesh;
   private temp = new THREE.Object3D();
@@ -191,7 +168,7 @@ export class VillageScene {
     this.cursor.dispose();
     this.listeners.abort();
     this.controls.dispose();
-    this.resourcePulses.clear();
+    this.entities.reset();
     disposeGroup(this.scene);
     this.renderer.dispose();
   }
@@ -213,91 +190,13 @@ export class VillageScene {
     this.selected.clear();
     this.selectedObject = null;
     this.plannedPaths.clearRoutes();
-    this.resourcePulses.clear();
-    this.models.clear();
-    this.previousPositions.clear();
-    this.walkPoses.clear();
-    this.gatherPoses.clear();
-    this.gatherRigs.clear();
-    for (const group of [
-      this.entities,
-      this.paths,
-      this.markers,
-      this.terrain,
-    ]) {
+    this.entities.reset();
+    for (const group of [this.paths, this.markers, this.terrain]) {
       disposeGroup(group);
       group.clear();
     }
     this.pathSignature = "";
-    const base = new THREE.Group();
-    box(base, "#b3ab8d", 20, -0.9, 20, 40, 1.3, 40);
-    box(base, "#8c927e", 20, -1.62, 20, 39.6, 0.15, 39.6);
-    this.terrain.add(base);
-    const floor = new THREE.InstancedMesh(
-      new THREE.BoxGeometry(1, 0.1, 1),
-      material("#ffffff"),
-      w.size * w.size,
-    );
-    const waterTiles = w.terrain.filter((n) => n === 1).length;
-    this.water = new THREE.InstancedMesh(
-      new THREE.BoxGeometry(1, 0.04, 1),
-      new THREE.MeshStandardMaterial({
-        color: "#8db8b1",
-        roughness: 0.3,
-        metalness: 0.15,
-      }),
-      waterTiles,
-    );
-    let k = 0;
-    for (let z = 0; z < w.size; z++)
-      for (let x = 0; x < w.size; x++) {
-        const i = cell(w, x, z),
-          isWater = w.terrain[i] === 1;
-        this.temp.position.set(x + 0.5, isWater ? -0.23 : -0.035, z + 0.5);
-        this.temp.scale.set(1, 1, 1);
-        this.temp.rotation.set(0, 0, 0);
-        this.temp.updateMatrix();
-        floor.setMatrixAt(i, this.temp.matrix);
-        const r = (Math.sin(x * 78.23 + z * 32.43) * 4532) % 1;
-        floor.setColorAt(
-          i,
-          new THREE.Color(
-            isWater
-              ? "#b9baa0"
-              : r > 0.6
-                ? "#a5b88a"
-                : r < -0.5
-                  ? "#b1bf94"
-                  : "#aab98e",
-          ),
-        );
-        if (isWater) {
-          this.temp.position.y = -0.12;
-          this.temp.updateMatrix();
-          this.water.setMatrixAt(k++, this.temp.matrix);
-        }
-      }
-    floor.receiveShadow = true;
-    this.water.receiveShadow = true;
-    this.terrain.add(floor, this.water);
-    // Small meadow tufts, all in one draw call.
-    const grass = new THREE.InstancedMesh(
-      new THREE.ConeGeometry(0.045, 0.18, 3),
-      material("#8eaa73"),
-      600,
-    );
-    let count = 0;
-    for (let i = 0; i < 1000 && count < 600; i++) {
-      const x = (Math.sin(i * 37.8) * 0.5 + 0.5) * 39,
-        z = (Math.sin(i * 17.3 + 9) * 0.5 + 0.5) * 39;
-      if (w.terrain[cell(w, Math.floor(x), Math.floor(z))]) continue;
-      this.temp.position.set(x, 0.07, z);
-      this.temp.rotation.set(0, i, 0);
-      this.temp.updateMatrix();
-      grass.setMatrixAt(count++, this.temp.matrix);
-    }
-    grass.count = count;
-    this.terrain.add(grass);
+    this.terrain.add(createTerrain(w));
     this.sync(w);
     this.home();
   }
@@ -360,10 +259,9 @@ export class VillageScene {
       }
     }
   }
-  /** Snapshot immediately before each fixed simulation step, including multiple steps per frame. */
+  /** Snapshot immediately before each fixed simulation step. */
   captureMovement(w: World) {
-    for (const v of w.villagers)
-      this.previousPositions.set(v.id, { x: v.x, z: v.z });
+    this.entities.captureMovement(w);
   }
   /** Called once after a successful player gather command, regardless of party size. */
   flashResource(id: number) {
@@ -372,79 +270,16 @@ export class VillageScene {
       !this.world.nodes.some((n) => n.id === id && n.amount > 0)
     )
       return;
-    const model = this.models.get(`resource:${id}`);
-    if (model) this.resourcePulses.start(model, performance.now());
+    this.entities.flashResource(id, performance.now());
   }
   sync(w: World) {
     this.world = w;
-    const alive = new Set<string>();
-    for (const n of w.nodes) {
-      if (n.amount <= 0) continue;
-      const key = `resource:${n.id}`;
-      alive.add(key);
-      if (!this.models.has(key)) {
-        let g: THREE.Group;
-        if (n.kind === "wood") g = treeModel(n.variant);
-        else if (n.kind === "food") g = berryBushModel();
-        else {
-          g = new THREE.Group();
-          stone(g, "#969e91", 0, 0.36, 0, 0.6, 0.58, 0.51);
-          stone(g, "#b5b6a3", 0.28, 0.22, 0.3, 0.35, 0.3, 0.35);
-        }
-        g.position.set(n.x + 0.5, 0, n.z + 0.5);
-        g.rotation.y = n.variant * 6;
-        g.userData = { type: "resource", id: n.id };
-        this.entities.add(g);
-        this.models.set(key, g);
-      }
-    }
-    for (const b of w.buildings) {
-      const key = `building:${b.id}`;
-      alive.add(key);
-      let g = this.models.get(key);
-      if (!g) {
-        g = buildingModel(b.kind);
-        const [a, c] = dimensions(b);
-        g.position.set(b.x + a / 2, 0, b.z + c / 2);
-        g.rotation.y = (b.rotation * Math.PI) / 2;
-        g.userData = { type: "building", id: b.id };
-        this.entities.add(g);
-        this.models.set(key, g);
-      }
-      setBuildingProgress(g, b.progress);
-    }
-    for (const v of w.villagers) {
-      const key = `villager:${v.id}`;
-      alive.add(key);
-      let g = this.models.get(key);
-      if (!g) {
-        g = villagerModel(v.id);
-        this.gatherPoses.set(v.id, createGatherPose(v.id));
-        this.gatherRigs.set(v.id, gatheringRig(g));
-        this.walkPoses.set(v.id, { phase: v.id % 6, weight: 0, heading: 0 });
-        g.position.set(v.x, 0, v.z);
-        g.userData = { type: "villager", id: v.id };
-        this.entities.add(g);
-        this.models.set(key, g);
-      }
-      g.getObjectByName("cargo")!.visible = !!v.cargo;
-    }
-    for (const [key, g] of this.models)
-      if (!alive.has(key)) {
-        this.resourcePulses.remove(g);
-        this.entities.remove(g);
-        disposeGroup(g);
-        this.models.delete(key);
-        if (g.userData.type === "villager") {
-          this.walkPoses.delete(g.userData.id);
-          this.previousPositions.delete(g.userData.id);
-          this.gatherPoses.delete(g.userData.id);
-          this.gatherRigs.delete(g.userData.id);
-        }
-      }
+    this.entities.sync(w);
     if (
       this.selectedObject &&
-      !alive.has(`${this.selectedObject.type}:${this.selectedObject.id}`)
+      !this.entities.getModel(
+        `${this.selectedObject.type}:${this.selectedObject.id}`,
+      )
     ) {
       this.selectedObject = null;
       this.updateMarkers();
@@ -514,7 +349,8 @@ export class VillageScene {
     const rect = this.canvas.getBoundingClientRect();
     return this.world.villagers
       .filter((v) => {
-        const rendered = this.models.get(`villager:${v.id}`)?.position ?? v;
+        const rendered =
+          this.entities.getModel(`villager:${v.id}`)?.position ?? v;
         const p = new THREE.Vector3(rendered.x, 0.4, rendered.z).project(
           this.camera,
         );
@@ -578,7 +414,7 @@ export class VillageScene {
   frame(now: number, alpha = 1, simulationDelta = 0) {
     const dt = Math.min(0.05, (now - this.lastTime) / 1000 || 0.016);
     this.lastTime = now;
-    this.resourcePulses.update(now);
+    this.entities.updatePulses(now);
     const right = new THREE.Vector3().setFromMatrixColumn(
       this.camera.matrix,
       0,
@@ -613,58 +449,20 @@ export class VillageScene {
         .applyAxisAngle(new THREE.Vector3(0, 1, 0), angle * dt);
       this.camera.position.copy(this.controls.target).add(offset);
     }
-    for (const v of this.world?.villagers ?? []) {
-      const g = this.models.get(`villager:${v.id}`);
-      if (g) {
-        const p = interpolatePosition(
-          this.previousPositions.get(v.id) ?? v,
-          v,
-          alpha,
-        );
-        const pose = this.walkPoses.get(v.id)!;
-        const moving =
-          Math.hypot(p.x - g.position.x, p.z - g.position.z) > 0.000001;
-        advanceWalk(
-          pose,
-          p.x - g.position.x,
-          p.z - g.position.z,
-          simulationDelta,
-        );
-        g.position.x = p.x;
-        g.position.z = p.z;
-        const gather = this.gatherPoses.get(v.id)!;
-        advanceGather(
-          gather,
-          moving ? null : workingActivity(this.world!, v),
-          pose,
-          p,
-          simulationDelta,
-        );
-        g.rotation.y = pose.heading;
-        const stride = Math.sin(pose.phase) * pose.weight;
-        g.getObjectByName("left-leg")!.rotation.x = stride * 0.48;
-        g.getObjectByName("right-leg")!.rotation.x = -stride * 0.48;
-        g.getObjectByName("left-arm")!.rotation.x = -stride * 0.32;
-        g.getObjectByName("right-arm")!.rotation.x = stride * 0.32;
-        applyGatherPose(this.gatherRigs.get(v.id)!, gather);
-        g.position.y =
-          paddyHeight(this.world!, p) +
-          (1 - Math.cos(pose.phase * 2)) * 0.012 * pose.weight;
-        g.rotation.z = stride * 0.018;
-      }
-    }
+    this.entities.animate(this.world, alpha, simulationDelta);
     if (this.world)
       this.plannedPaths.update(
         this.world,
         this.selected,
-        (v) => this.models.get(`villager:${v.id}`)?.position ?? v,
+        (v) => this.entities.getModel(`villager:${v.id}`)?.position ?? v,
       );
     // Move existing rings instead of rebuilding geometry every animation frame.
     let index = 0;
     for (const v of this.world?.villagers ?? [])
       if (this.selected.has(v.id)) {
         const ring = this.markers.children[index++];
-        const rendered = this.models.get(`villager:${v.id}`)?.position ?? v;
+        const rendered =
+          this.entities.getModel(`villager:${v.id}`)?.position ?? v;
         if (ring)
           ring.position.set(
             rendered.x,
