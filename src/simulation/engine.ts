@@ -304,6 +304,49 @@ export function researchError(w: World, id: TechId): string | null {
   if (!canAfford(w, t.cost)) return "Not enough resources yet.";
   return null;
 }
+/** Read-only validation shared by command dispatch and contextual feedback. */
+export function orderError(
+  w: World,
+  ids: number[],
+  order: Order,
+): string | null {
+  if (
+    order.type === "move" &&
+    (!Number.isFinite(order.target.x) ||
+      !Number.isFinite(order.target.z) ||
+      !walkable(w, Math.floor(order.target.x), Math.floor(order.target.z)))
+  )
+    return "Choose an open, walkable tile.";
+  if (
+    order.type === "gather" &&
+    !w.nodes.some(
+      (n) => n.id === (order as { target: number }).target && n.amount > 0,
+    )
+  )
+    return "This resource is exhausted.";
+  if (
+    order.type === "build" &&
+    !w.buildings.some(
+      (b) => b.id === (order as { target: number }).target && b.progress < 1,
+    )
+  )
+    return "Choose an unfinished building.";
+  if (order.type === "work") {
+    const target = order.target,
+      b = w.buildings.find((b) => b.id === target);
+    if (!b || b.progress < 1 || !["farm", "workshop"].includes(b.kind))
+      return "Assign workers to a completed paddy or workshop.";
+    const occupied = w.villagers.filter(
+      (v) =>
+        v.order.type === "work" &&
+        v.order.target === target &&
+        !ids.includes(v.id),
+    ).length;
+    if (occupied + ids.length > (b.kind === "farm" ? 3 : 2))
+      return `This ${BUILDINGS[b.kind].name.toLowerCase()} has room for ${b.kind === "farm" ? 3 : 2} workers.`;
+  }
+  return null;
+}
 function assign(v: Villager, order: Order) {
   v.order = structuredClone(order);
   v.task = (
@@ -357,48 +400,8 @@ export function applyCommand(w: World, c: Command): CommandResult {
     return { ok: true };
   }
   if (c.type === "order") {
-    if (
-      c.order.type === "move" &&
-      (!Number.isFinite(c.order.target.x) ||
-        !Number.isFinite(c.order.target.z) ||
-        !walkable(
-          w,
-          Math.floor(c.order.target.x),
-          Math.floor(c.order.target.z),
-        ))
-    )
-      return fail("Choose an open, walkable tile.");
-    if (
-      c.order.type === "gather" &&
-      !w.nodes.some(
-        (n) => n.id === (c.order as { target: number }).target && n.amount > 0,
-      )
-    )
-      return fail("This resource is exhausted.");
-    if (
-      c.order.type === "build" &&
-      !w.buildings.some(
-        (b) =>
-          b.id === (c.order as { target: number }).target && b.progress < 1,
-      )
-    )
-      return fail("Choose an unfinished building.");
-    if (c.order.type === "work") {
-      const target = c.order.target,
-        b = w.buildings.find((b) => b.id === target);
-      if (!b || b.progress < 1 || !["farm", "workshop"].includes(b.kind))
-        return fail("Assign workers to a completed paddy or workshop.");
-      const occupied = w.villagers.filter(
-        (v) =>
-          v.order.type === "work" &&
-          v.order.target === target &&
-          !c.ids.includes(v.id),
-      ).length;
-      if (occupied + c.ids.length > (b.kind === "farm" ? 3 : 2))
-        return fail(
-          `This ${BUILDINGS[b.kind].name.toLowerCase()} has room for ${b.kind === "farm" ? 3 : 2} workers.`,
-        );
-    }
+    const error = orderError(w, c.ids, c.order);
+    if (error) return fail(error);
     for (const v of w.villagers.filter((v) => c.ids.includes(v.id)))
       assign(v, c.order);
     w.scenario.flags.directed = true;
@@ -511,35 +514,58 @@ function approach(
   const goals = perimeter(w, p, width, depth);
   return approachSpots(w, v, goals);
 }
+/** Read-only route used by work execution and contextual action feedback. */
+export function approachPath(
+  w: World,
+  v: Villager,
+  goals: Point[],
+  farmId?: number,
+): Point[] | null {
+  if (
+    farmId === undefined &&
+    goals.some((g) => Math.floor(v.x) === g.x && Math.floor(v.z) === g.z)
+  )
+    return [];
+  return findPath(w, v, approachTargets(w, goals, farmId)(v), farmId);
+}
+
+/** Snapshot current positions/reservations once for a group eligibility query. */
+export function approachTargets(w: World, goals: Point[], farmId?: number) {
+  // null marks a tile shared by multiple workers; repeated claims by one worker
+  // (standing on their reserved endpoint) still belong only to that worker.
+  const owners = new Map<number, number | null>();
+  const claim = (p: Point, id: number) => {
+    const tile = cell(w, Math.floor(p.x), Math.floor(p.z));
+    const owner = owners.get(tile);
+    owners.set(tile, owner === undefined || owner === id ? id : null);
+  };
+  for (const other of w.villagers) {
+    claim(other, other.id);
+    if (other.path.length) claim(other.path.at(-1)!, other.id);
+  }
+  return (v: Villager) => {
+    // Ordinary approach can work from an occupied perimeter tile already underfoot.
+    if (farmId === undefined) {
+      const here = goals.find(
+        (g) => Math.floor(v.x) === g.x && Math.floor(v.z) === g.z,
+      );
+      if (here) return [here];
+    }
+    const free = goals.filter((g) => {
+      const owner = owners.get(cell(w, g.x, g.z));
+      return owner === undefined || owner === v.id;
+    });
+    // Paddy spots are exclusive; other approaches fall back to occupied goals.
+    return farmId !== undefined || free.length ? free : goals;
+  };
+}
 function approachSpots(
   w: World,
   v: Villager,
   goals: Point[],
   farmId?: number,
 ): boolean {
-  if (
-    farmId === undefined &&
-    goals.some((g) => Math.floor(v.x) === g.x && Math.floor(v.z) === g.z)
-  )
-    return true;
-  const free = goals.filter(
-    (g) =>
-      !w.villagers.some(
-        (other) =>
-          other.id !== v.id &&
-          ((Math.floor(other.x) === g.x && Math.floor(other.z) === g.z) ||
-            (other.path.length > 0 &&
-              Math.floor(other.path.at(-1)!.x) === g.x &&
-              Math.floor(other.path.at(-1)!.z) === g.z)),
-      ),
-  );
-  // Paddy spots are exclusive; a full paddy waits instead of stacking farmers.
-  const path = findPath(
-    w,
-    v,
-    farmId !== undefined || free.length ? free : goals,
-    farmId,
-  );
+  const path = approachPath(w, v, goals, farmId);
   if (path === null) {
     v.task = "Route blocked";
     v.blocked = 8;

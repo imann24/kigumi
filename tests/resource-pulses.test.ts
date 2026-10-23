@@ -40,10 +40,12 @@ const surface = (mesh: THREE.Mesh) =>
   mesh.material as THREE.MeshStandardMaterial;
 function village() {
   vi.stubGlobal("window", { devicePixelRatio: 1, addEventListener() {} });
+  vi.stubGlobal("document", { addEventListener() {} });
   const scene = new VillageScene({
+    style: { cursor: "" },
+    addEventListener() {},
     clientWidth: 800,
     clientHeight: 600,
-    addEventListener() {},
   } as unknown as HTMLCanvasElement);
   const world = createWorld(42);
   scene.setWorld(world);

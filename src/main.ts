@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import "./style.css";
 import {
   BUILDINGS,
@@ -26,8 +27,13 @@ import {
   serialize,
 } from "./simulation/save";
 import { LocalSession } from "./simulation/session";
-import type { Command, Order, Point, World } from "./simulation/types";
+import type { Command, Point, World } from "./simulation/types";
 import { VillageScene, type Hit } from "./game/scene";
+import {
+  contextualCursor,
+  contextualOrder,
+  type ActionCursor,
+} from "./game/contextual-actions";
 import { installMinimapPan } from "./game/minimap-pan";
 import { installSpacePan } from "./game/camera-pan";
 import { thumbnails } from "./game/thumbnails";
@@ -168,6 +174,8 @@ function dispatch(c: Command) {
     scene.sync(session.world);
     renderUi();
   }
+  cursorCache = null;
+  scene.cursor.refresh();
   return result.ok;
 }
 function costMarkup(cost: Partial<Record<Resource, number>>) {
@@ -231,6 +239,7 @@ function select(ids: number[], hit: Hit | null = null) {
   panel.open = true;
   panel.querySelector("summary")!.textContent = "Selection";
   renderInspector();
+  scene.cursor.refresh();
 }
 function renderInspector() {
   const w = session.world,
@@ -421,6 +430,7 @@ function renderUi() {
   if (modal === "research") renderResearch();
 }
 function updatePreview() {
+  scene.cursor.refresh();
   const hint = $("build-hint");
   hint.hidden = !build && !erasing;
   const rotatable = !!build && BUILDINGS[build].category !== "paths";
@@ -602,6 +612,7 @@ function modalShell(title: string, subtitle: string, body: string) {
     `<section class="modal" role="dialog" aria-modal="true" aria-label="${title}"><button id="close-modal" class="modal-close" aria-label="Close">${icon("close")}</button><span class="eyebrow">FIELD NOTES</span><h2>${title}</h2><p class="modal-subtitle">${subtitle}</p>${body}</section>`;
   $("close-modal").onclick = closeModal;
   $("close-modal").focus();
+  scene.cursor.clear();
 }
 function renderResearch() {
   const w = session.world;
@@ -711,6 +722,27 @@ function openModal(type: string) {
 }
 // Interaction stays on the canvas; UI never leaks placement clicks into the world.
 const canvas = $<HTMLCanvasElement>("world");
+// Cache expensive placement checks per tile/tick. Contextual orders read live
+// selection, positions and reservations; their terrain connectivity cache only
+// changes with navigation/access, never merely because the simulation tick advanced.
+let cursorCache: {
+  world: World;
+  key: string;
+  value: ActionCursor | null;
+} | null = null;
+scene.cursor.resolve = (x, y) => {
+  if (modal || erasing || drag || (!build && !selected.length)) return null;
+  const w = session.world;
+  if (!build) return contextualCursor(w, selected, scene.hit(x, y), null);
+  const p = scene.pointerWorld(x, y);
+  const key = `${w.tick}:${build}:${rotation}:${p ? `${Math.floor(p.x)},${Math.floor(p.z)}` : ""}`;
+  if (cursorCache?.world === w && cursorCache.key === key)
+    return cursorCache.value;
+  const value = contextualCursor(w, selected, null, p, build, rotation);
+  cursorCache = { world: w, key, value };
+  return value;
+};
+
 const cameraPan = installSpacePan(scene, {
   enabled: () => !modal,
   tap: () => setSpeed(speed ? 0 : 1),
@@ -775,15 +807,9 @@ canvas.addEventListener("contextmenu", (e) => {
   }
   const hit = scene.hit(e.clientX, e.clientY),
     p = scene.pointerWorld(e.clientX, e.clientY);
-  let order: Order | undefined;
-  if (hit?.type === "resource") order = { type: "gather", target: hit.id };
-  else if (hit?.type === "building") {
-    const b = session.world.buildings.find((b) => b.id === hit.id)!;
-    if (b.progress < 1) order = { type: "build", target: b.id };
-    else if (b.kind === "farm" || b.kind === "workshop")
-      order = { type: "work", target: b.id };
-    else toast("Right-click a paddy, workshop, resource, or open ground.");
-  } else if (p) order = { type: "move", target: p };
+  const order = contextualOrder(session.world, hit, p);
+  if (!order && hit?.type === "building")
+    toast("Right-click a paddy, workshop, resource, or open ground.");
   if (order && dispatch({ type: "order", ids: selected, order })) {
     if (order.type === "gather") scene.flashResource(order.target);
     toast(
@@ -960,8 +986,9 @@ document.addEventListener("visibilitychange", () => {
   if (document.hidden) save();
   renderProduction();
 });
+let animationFrame = 0;
 function frame(now: number) {
-  requestAnimationFrame(frame);
+  animationFrame = requestAnimationFrame(frame);
   const dt = Math.min(0.15, (now - lastFrame) / 1000 || 0);
   lastFrame = now;
   if (!modal && !document.hidden) {
@@ -990,5 +1017,10 @@ function frame(now: number) {
 }
 renderCards();
 renderUi();
-requestAnimationFrame(frame);
+animationFrame = requestAnimationFrame(frame);
+if (import.meta.hot)
+  import.meta.hot.dispose(() => {
+    cancelAnimationFrame(animationFrame);
+    scene.dispose();
+  });
 if (loadWarning) toast(loadWarning);

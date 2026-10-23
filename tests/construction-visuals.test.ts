@@ -7,8 +7,8 @@ import {
 } from "../src/game/art";
 import { VillageScene } from "../src/game/scene";
 import { MapGrid } from "../src/game/map-grid";
-import { PlannedPaths } from "../src/game/planned-paths";
 import { ResourcePulses } from "../src/game/resource-pulses";
+import { PlannedPaths } from "../src/game/planned-paths";
 import { BUILDINGS } from "../src/simulation/catalog";
 import { createWorld } from "../src/simulation/engine";
 import { dimensions } from "../src/simulation/grid";
@@ -46,6 +46,7 @@ function sceneFixture() {
       grid: new MapGrid(),
       plannedPaths: new PlannedPaths(),
       resourcePulses: new ResourcePulses(),
+      cursor: { clear: vi.fn() },
       gatherPoses: new Map(),
       gatherRigs: new Map(),
       models: new Map(),
