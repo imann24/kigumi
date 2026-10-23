@@ -21,6 +21,7 @@ Dependencies must be installed online once; the built app runs fully offline. In
 
 You begin with ten villagers, a hall, two homes, a storehouse, and a rice paddy. Explore at your own pace. There is no combat, death, timer, or victory condition.
 
+- Villagers hidden behind buildings show a subtle ivory contour on their obscured portions. Visible villagers and selection rings keep their usual appearance; the contour does not change picking. See [rendering behavior and verification](docs/villager-occlusion.md).
 - Select a villager with **left click**, or **drag a box** to select a group. **Shift** adds villagers to a selection.
 - **Right-click** a tree, berry bush, or stone deposit to gather; an unfinished building to construct; a paddy or workshop to work; or open ground to move.
 - Workers carry real loads to a reachable hall or storehouse. Nearby storage reduces travel, and paths make walking **45% faster**. A route must remain open to each building and villager when placing a structure.

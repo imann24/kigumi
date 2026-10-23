@@ -12,6 +12,7 @@ import {
 } from "./art";
 import { ActionCursorController } from "./action-cursor";
 import { SceneEntities } from "./scene-entities";
+import { VillagerOcclusion } from "./villager-occlusion";
 import { createTerrain } from "./terrain";
 import { panCamera } from "./camera-pan";
 import { PlannedPaths } from "./planned-paths";
@@ -27,6 +28,7 @@ export class VillageScene {
   controls: OrbitControls;
   private terrain = new THREE.Group();
   private entities = new SceneEntities();
+  private occlusion = new VillagerOcclusion();
   private paths = new THREE.Group();
   private markers = new THREE.Group();
   private plannedPaths = new PlannedPaths();
@@ -170,6 +172,7 @@ export class VillageScene {
     this.controls.dispose();
     this.entities.reset();
     disposeGroup(this.scene);
+    this.occlusion.dispose();
     this.renderer.dispose();
   }
   resize() {
@@ -483,7 +486,9 @@ export class VillageScene {
     }
     this.petals.instanceMatrix.needsUpdate = true;
     this.controls.update();
-    this.renderer.render(this.scene, this.camera);
+    if (this.world?.buildings.length && this.world.villagers.length)
+      this.occlusion.render(this.renderer, this.scene, this.camera);
+    else this.renderer.render(this.scene, this.camera);
     this.cursor.update(now);
   }
 }

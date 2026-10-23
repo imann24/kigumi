@@ -22,6 +22,10 @@ import {
 } from "./gathering";
 import { paddyHeight } from "./surfaces";
 import { ResourcePulses } from "./resource-pulses";
+import {
+  BUILDING_OCCLUDER_LAYER,
+  VILLAGER_SILHOUETTE_LAYER,
+} from "./occlusion-layers";
 
 /** Owns entity models and visual-only state; never advances or mutates the world. */
 export class SceneEntities extends THREE.Group {
@@ -86,6 +90,8 @@ export class SceneEntities extends THREE.Group {
       let g = this.models.get(key);
       if (!g) {
         g = buildingModel(b.kind);
+        // Reuse the actual rotated/construction geometry in the occlusion pass.
+        g.traverse((part) => part.layers.enable(BUILDING_OCCLUDER_LAYER));
         const [a, c] = dimensions(b);
         g.position.set(b.x + a / 2, 0, b.z + c / 2);
         g.rotation.y = (b.rotation * Math.PI) / 2;
@@ -101,6 +107,7 @@ export class SceneEntities extends THREE.Group {
       let g = this.models.get(key);
       if (!g) {
         g = villagerModel(v.id);
+        g.traverse((part) => part.layers.enable(VILLAGER_SILHOUETTE_LAYER));
         this.gatherPoses.set(v.id, createGatherPose(v.id));
         this.gatherRigs.set(v.id, gatheringRig(g));
         this.walkPoses.set(v.id, { phase: v.id % 6, weight: 0, heading: 0 });
