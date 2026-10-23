@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { SceneEntities } from "../src/game/scene-entities";
 import { createWorld } from "../src/simulation/engine";
 import { deserialize, serialize } from "../src/simulation/save";
+import { recordWork } from "../src/simulation/work-activity";
 
 const entities = new SceneEntities();
 afterEach(() => entities.reset());
@@ -94,6 +95,45 @@ describe("scene entity lifecycle", () => {
     expect(replacement.position.toArray()).toEqual([2, 0, 2]);
     expect(replacement.getObjectByName("left-leg")!.rotation.x).toBeCloseTo(0);
   });
+
+  it.each([
+    ["chop", "axe"],
+    ["mine", "pickaxe"],
+    ["pick", null],
+    ["tend", null],
+    ["craft", "mallet"],
+  ] as const)(
+    "renders and pauses %s work, then fades stale activity",
+    (kind, tool) => {
+      const w = world(),
+        v = w.villagers[0];
+      const target =
+        kind === "tend" || kind === "craft"
+          ? w.buildings.find((b) => b.kind === "farm")!
+          : w.nodes[0];
+      v.path = [];
+      v.blocked = 0;
+      v.task = "Working";
+      recordWork(w, v, kind, target);
+      const before = structuredClone(w);
+      entities.sync(w);
+      entities.animate(w, 1, 0.25);
+      const model = entities.getModel(`villager:${v.id}`)!;
+      const upper = model.getObjectByName("upper-body")!;
+      expect(upper.rotation.x).toBeGreaterThan(0);
+      for (const name of ["axe", "pickaxe", "mallet"])
+        expect(model.getObjectByName(name)!.visible).toBe(name === tool);
+      const pose = upper.rotation.toArray();
+      entities.animate(w, 1, 0);
+      expect(upper.rotation.toArray()).toEqual(pose);
+      expect(w).toEqual(before);
+      w.tick++;
+      entities.animate(w, 1, 1);
+      expect(upper.rotation.x).toBeLessThan(0.001);
+      for (const name of ["axe", "pickaxe", "mallet"])
+        expect(model.getObjectByName(name)!.visible).toBe(false);
+    },
+  );
 
   it.each(["depletion", "reset", "expiry"] as const)(
     "restores pulse materials on %s",
