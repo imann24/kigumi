@@ -14,6 +14,23 @@ vi.mock("three", async (importOriginal) => {
       shadowMap = {};
       setPixelRatio() {}
       setSize() {}
+      getDrawingBufferSize(v: THREE.Vector2) {
+        return v.set(800, 600);
+      }
+      getPixelRatio() {
+        return 1;
+      }
+      getRenderTarget() {
+        return null;
+      }
+      setRenderTarget() {}
+      getClearColor(v: THREE.Color) {
+        return v.set(0);
+      }
+      getClearAlpha() {
+        return 1;
+      }
+      setClearColor() {}
       render() {}
     },
   };
